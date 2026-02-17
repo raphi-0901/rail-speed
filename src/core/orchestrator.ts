@@ -1,5 +1,5 @@
-import { SpeedProvider, TimeSource } from './types'
-import { ExponentialBackoff } from './backoff'
+import { SpeedProvider, TimeSource } from './types.js'
+import { ExponentialBackoff } from './backoff.js'
 
 export type OrchestratorResult = {
     ok: true

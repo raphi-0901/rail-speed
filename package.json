@@ -6,6 +6,9 @@
   "private": true,
   "scripts": {
     "build": "tsc",
+    "build:full": "npm run build && npm run link:full",
+    "rebuild:full": "npm run rebuild && npm run link:full",
+    "link:full": "npm run link && npm run reload",
     "watch": "tsc -w",
     "clean": "rm -rf dist",
     "rebuild": "npm run clean && npm run build",
@@ -23,6 +26,9 @@
     "gnome-shell",
     "extension",
     "train",
+    "rail",
+    "speed",
+    "velocity",
     "typescript",
     "backoff"
   ],

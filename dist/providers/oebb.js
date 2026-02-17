@@ -1,0 +1,22 @@
+import { BaseProvider } from "../core/provider.js";
+export class OebbProvider extends BaseProvider {
+    http;
+    name = 'OEBB';
+    constructor(http) {
+        super();
+        this.http = http;
+    }
+    async fetch() {
+        return this.wrapFetch(this.name, async () => {
+            const text = await this.http.get('https://railnet.oebb.at/api/speed', {
+                'Accept': 'text/plain,*/*;q=0.9',
+            });
+            const speed = Number(text);
+            if (!Number.isFinite(speed)) {
+                throw new Error('ÖBB: invalid numeric response');
+            }
+            return speed;
+        });
+    }
+}
+//# sourceMappingURL=oebb.js.map

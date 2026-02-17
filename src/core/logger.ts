@@ -15,7 +15,7 @@ export class Logger {
         this.sink = sink
     }
 
-    static getInstance(tag = 'train-speed', sink?: LoggerSink): Logger {
+    static getInstance(tag = 'rail-speed', sink?: LoggerSink): Logger {
         if (!Logger.instance) {
             Logger.instance = new Logger(tag, sink)
         }
