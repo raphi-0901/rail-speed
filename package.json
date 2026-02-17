@@ -1,0 +1,41 @@
+{
+  "name": "rail-speed",
+  "version": "1.0.0",
+  "description": "GNOME Shell extension showing current train speed.",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "clean": "rm -rf dist",
+    "rebuild": "npm run clean && npm run build",
+    "link": "ln -sf $(pwd)/dist ~/.local/share/gnome-shell/extensions/rail-speed@raphael-wirnsberger.at",
+    "reset": "gnome-extensions reset rail-speed@raphael-wirnsberger.at",
+    "enable": "gnome-extensions enable rail-speed@raphael-wirnsberger.at",
+    "disable": "gnome-extensions disable rail-speed@raphael-wirnsberger.at",
+    "reload": "gnome-extensions disable rail-speed@raphael-wirnsberger.at && gnome-extensions enable rail-speed@raphael-wirnsberger.at"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raphi-0901/rail-speed.git"
+  },
+  "keywords": [
+    "gnome-shell",
+    "extension",
+    "train",
+    "typescript",
+    "backoff"
+  ],
+  "author": "Raphael Wirnsberger",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/raphi-0901/rail-speed/issues"
+  },
+  "homepage": "https://github.com/raphi-0901/rail-speed#readme",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@girs/gjs": "^4.0.0-beta.38"
+  }
+}
