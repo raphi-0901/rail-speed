@@ -1,8 +1,3 @@
-import '@girs/gdk-4.0'
-
-import Gtk from 'gi://Gtk?version=4.0';
-
-
 import St from 'gi://St'
 import Clutter from 'gi://Clutter'
 import GLib from 'gi://GLib'
@@ -20,10 +15,7 @@ import { GnomeTimeSource } from './platform/time.js'
 const FAST_REFRESH = 1
 
 export default class TrainSpeedExtension extends Extension {
-    private button = new Gtk.Button();
-
-
-    private _label: typeof St.Label | null = null
+    private _label: St.Label | null = null
     private _timer: number | null = null
     private _currentInterval: number = 0
 
