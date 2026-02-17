@@ -1,3 +1,4 @@
-.idea
-node_modules
-node_modules
+/dist/**/*.js
+/node_modules/
+/out/
+/gtile.dist.tgz

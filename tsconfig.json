@@ -2,7 +2,8 @@
   "include": [
     "*.d.ts",
     "src",
-    ],
+    "test"
+  ],
   "compilerOptions": {
     /*
      * Set the JavaScript language version for emitted JavaScript and include compatible library declarations.
@@ -34,11 +35,11 @@
     /**
      * Specify how TypeScript looks up a file from a given module specifier.
      */
-    "moduleResolution": "nodenext",
+    "moduleResolution": "Node16",
 
     /* Emit */
     "sourceMap": true,                                   /* Create source map files for emitted JavaScript files. */
-    "outDir": "./dist",                                   /* Specify an output folder for all emitted files. */
+    "outDir": "./out",                                   /* Specify an output folder for all emitted files. */
     "removeComments": true,                              /* Disable emitting comments. */
 
     /* Interop Constraints */

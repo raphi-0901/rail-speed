@@ -33,12 +33,30 @@
   },
   "homepage": "https://github.com/raphi-0901/rail-speed#readme",
   "devDependencies": {
-    "@girs/clutter-15": "^15.0.0-4.0.0-beta.38",
+    "@ava/typescript": "^6.0.0",
+    "@girs/adw-1": "^1.9.0-4.0.0-beta.38",
+    "@girs/clutter-17": "^17.0.0-4.0.0-beta.38",
+    "@girs/gdk-4.0": "^4.0.0-4.0.0-beta.38",
     "@girs/gio-2.0": "^2.86.0-4.0.0-beta.38",
     "@girs/glib-2.0": "^2.86.0-4.0.0-beta.38",
     "@girs/gnome-shell": "^49.1.0",
-    "@girs/soup-3.0": "^3.6.5-4.0.0-beta.38",
-    "@girs/st-15": "^15.0.0-4.0.0-beta.38",
+    "@girs/gobject-2.0": "^2.86.0-4.0.0-beta.38",
+    "@girs/gtk-4.0": "^4.20.1-4.0.0-beta.38",
+    "@girs/meta-17": "^17.0.0-4.0.0-beta.38",
+    "@girs/mtk-17": "^17.0.0-4.0.0-beta.38",
+    "@girs/pango-1.0": "^1.57.0-4.0.0-beta.38",
+    "@girs/shell-17": "^17.0.0-4.0.0-beta.38",
+    "@girs/st-17": "^17.0.0-4.0.0-beta.38",
+    "ava": "^6.4.1",
     "typescript": "^5.9.3"
+  },
+  "ava": {
+    "typescript": {
+      "rewritePaths": {
+        "src/": "out/src/",
+        "test/": "out/test/"
+      },
+      "compile": false
+    }
   }
 }

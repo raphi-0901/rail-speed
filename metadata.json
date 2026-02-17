@@ -1,7 +1,0 @@
-{
-  "uuid": "rail-speed@raphael-wirnsberger.at",
-  "name": "Rail speed",
-  "description": "Displays rail speed in the top bar",
-  "version": 1,
-  "shell-version": ["45", "46", "47"]
-}
