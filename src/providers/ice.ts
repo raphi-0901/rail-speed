@@ -1,5 +1,5 @@
-import { HttpClient, ProviderResult } from "../core/types";
-import {BaseProvider} from "../core/provider";
+import { HttpClient, ProviderResult } from "../core/types.js";
+import {BaseProvider} from "../core/provider.js";
 
 export class IcePortalProvider extends BaseProvider {
     readonly name = 'ICEPortal';

@@ -1,7 +1,5 @@
-import {HttpClient} from "../core/types";
-// @ts-ignore
+import {HttpClient} from "../core/types.js";
 import GLib from 'gi://GLib';
-// @ts-ignore
 import Soup from 'gi://Soup';
 
 export class GnomeHttpClient implements HttpClient {

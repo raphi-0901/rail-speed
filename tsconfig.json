@@ -1,13 +1,51 @@
 {
+  "include": [
+    "*.d.ts",
+    "src",
+    ],
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ES2022",
-    "strict": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "moduleResolution": "node",
-    "esModuleInterop": true,
-    "types": ["@girs/gjs", "@girs/nm-1.0"]
+    /*
+     * Set the JavaScript language version for emitted JavaScript and include compatible library declarations.
+     *
+     * This extension only supports Gnome versions >= 49 which implies that the
+     * GJS runtime is at least v1.86 which in turn is based on SpiderMonkey-140
+     * which features support for ECMAScript 2024 aka ES15.
+     */
+    "target": "ES2024",
+
+    /**
+     * Specify a set of bundled library declaration files that describe the target runtime environment.
+     *
+     * Restrict types to what is offered by the JS runtime environment. When not
+     * defined explicitly, DOM related APIs (e.g. window, etc.) will wrongfully
+     * be available in the project.
+     *
+     * Additional declarations and globals are specified in gnome-shell.d.ts.
+     */
+    "lib": ["ES2024"],
+
+    /**
+     * Specify what module code is generated.
+     *
+     * Checks package.json "type" field to determine module output format.
+     */
+    "module": "Node16",
+
+    /**
+     * Specify how TypeScript looks up a file from a given module specifier.
+     */
+    "moduleResolution": "nodenext",
+
+    /* Emit */
+    "sourceMap": true,                                   /* Create source map files for emitted JavaScript files. */
+    "outDir": "./dist",                                   /* Specify an output folder for all emitted files. */
+    "removeComments": true,                              /* Disable emitting comments. */
+
+    /* Interop Constraints */
+    "forceConsistentCasingInFileNames": true,            /* Ensure that casing is correct in imports. */
+
+    /* Type Checking */
+    "strict": true,                                      /* Enable all strict type-checking options. */
+    // "alwaysStrict": true,                             /* Ensure 'use strict' is always emitted. */
   },
-  "include": ["src"]
 }
