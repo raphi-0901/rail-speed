@@ -14,11 +14,3 @@ export interface SpeedProvider {
     readonly name: string
     fetch(): Promise<ProviderResult>
 }
-
-export interface TimeSource {
-    nowUs(): number
-}
-
-export interface HttpClient {
-    get(url: string, headers?: Record<string, string>): Promise<string>
-}

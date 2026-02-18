@@ -1,24 +1,15 @@
 export type LogLevel = 'INFO' | 'WARN' | 'ERROR'
 
-export interface LoggerSink {
-    log(level: LogLevel, tag: string, msg: string, error?: any): void
-}
-
 export class Logger {
     private static instance: Logger | null = null
 
-    private sink?: LoggerSink
-    private tag: string
+    private readonly tag = 'rail-speed'
 
-    private constructor(tag: string, sink?: LoggerSink) {
-        this.tag = tag
-        this.sink = sink
-    }
-
-    static getInstance(tag = 'rail-speed', sink?: LoggerSink): Logger {
+    static getInstance(): Logger {
         if (!Logger.instance) {
-            Logger.instance = new Logger(tag, sink)
+            Logger.instance = new Logger()
         }
+
         return Logger.instance
     }
 
@@ -26,16 +17,25 @@ export class Logger {
         return new Date().toISOString()
     }
 
+    private log(level: LogLevel, msg: string) {
+        const out = `[${this.tag}] ${this.now()} ${level} ${msg}`
+        switch(level) {
+            case 'INFO': log(out); break
+            case 'WARN': log(out); break
+            case 'ERROR': logError(out); break
+        }
+    }
+
     info(msg: string) {
-        this.sink?.log?.('INFO', this.tag, msg)
+        this.log('INFO', msg)
     }
 
     warn(msg: string) {
-        this.sink?.log?.('WARN', this.tag, msg)
+        this.log('WARN', msg)
     }
 
     error(err: any, context = '') {
         const msg = context ? `${context}: ${err}` : `${err}`
-        this.sink?.log?.('ERROR', this.tag, msg)
+        this.log('ERROR', msg)
     }
 }

@@ -2,7 +2,6 @@ import St from 'gi://St'
 import Clutter from 'gi://Clutter'
 import GLib from 'gi://GLib'
 import Gio from 'gi://Gio'
-import Soup from 'gi://Soup'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 import PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
@@ -10,8 +9,7 @@ import PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import { SpeedOrchestrator } from './core/orchestrator.js'
 import { IcePortalProvider } from './providers/ice.js'
 import { OebbProvider } from './providers/oebb.js'
-import { GnomeHttpClient } from './platform/gnome-fetch.js'
-import { GnomeTimeSource } from './platform/time.js'
+import {HttpClient} from "./core/httpClient.js";
 import {Logger} from "./core/logger.js";
 
 const FAST_REFRESH = 1
@@ -20,16 +18,13 @@ export default class RailSpeedExtension extends Extension {
     private _label: St.Label | null = null
     private _timer: number | null = null
     private _currentInterval: number = 0
-
-    private _session: any = null
-    private _http: GnomeHttpClient | null = null
-    private _time: GnomeTimeSource | null = null
+    private _LOGGER = Logger.getInstance()
+    private _http: HttpClient | null = null
 
     private _orchestrator: SpeedOrchestrator | null = null
 
     private _netmon: Gio.NetworkMonitor | null = null
     private _netmonChangedId: number = 0
-    private readonly _LOGGER = Logger.getInstance()
 
     enable() {
         // -----------------------
@@ -52,8 +47,7 @@ export default class RailSpeedExtension extends Extension {
         // -----------------------
         // Platform objects
         // -----------------------
-        this._session = new Soup.Session()
-        this._http = new GnomeHttpClient(this._session)
+        this._http = new HttpClient()
         this._time = new GnomeTimeSource()
 
         // -----------------------
