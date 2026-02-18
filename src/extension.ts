@@ -2,14 +2,15 @@ import St from 'gi://St'
 import Clutter from 'gi://Clutter'
 import GLib from 'gi://GLib'
 import Gio from 'gi://Gio'
-import * as Main from 'resource:///org/gnome/shell/ui/main.js'
+import { panel as Panel } from 'resource:///org/gnome/shell/ui/main.js'
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
-import PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
+import { Button } from 'resource:///org/gnome/shell/ui/panelMenu.js'
 
 import { SpeedOrchestrator } from './core/orchestrator.js'
 import { IcePortalProvider } from './providers/ice.js'
 import { OebbProvider } from './providers/oebb.js'
 import {Logger} from "./core/logger.js";
+import {TestProvider} from "./providers/test.js";
 
 const FAST_REFRESH = 1
 
@@ -28,7 +29,7 @@ export default class RailSpeedExtension extends Extension {
         // -----------------------
         // UI
         // -----------------------
-        const labelContainer = new PanelMenu.Button(0.0, 'railSpeed') // 0.0 = menu alignment
+        const labelContainer = new Button(0.0, 'railSpeed') // 0.0 = menu alignment
         const label = new St.Label({
             text: '--',
             y_align: Clutter.ActorAlign.CENTER,
@@ -38,7 +39,7 @@ export default class RailSpeedExtension extends Extension {
         labelContainer.add_child(label)
 
         this._label = label
-        Main.panel.addToStatusArea('railSpeed', labelContainer, 0)
+        Panel.addToStatusArea('railSpeed', labelContainer, 0)
 
         this._LOGGER.info(`Enable ${this.metadata.uuid} (GLib v${GLib.MAJOR_VERSION}.${GLib.MINOR_VERSION}.${GLib.MICRO_VERSION})`);
 
@@ -51,6 +52,7 @@ export default class RailSpeedExtension extends Extension {
         // Providers
         // -----------------------
         const providers = [
+            new TestProvider(),
             new IcePortalProvider(),
             new OebbProvider(),
         ]
