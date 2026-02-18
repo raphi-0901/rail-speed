@@ -1,5 +1,6 @@
-import { HttpClient, ProviderResult } from "../core/types.js";
+import { ProviderResult } from "../core/types.js";
 import {BaseProvider} from "../core/provider.js";
+import {HttpClient} from "../core/httpClient.js";
 
 export class OebbProvider extends BaseProvider {
     readonly name = 'OEBB';
@@ -10,8 +11,10 @@ export class OebbProvider extends BaseProvider {
 
     async fetch(): Promise<ProviderResult> {
         return this.wrapFetch(this.name, async () => {
-            const text = await this.http.get('https://railnet.oebb.at/api/speed', {
-                'Accept': 'text/plain,*/*;q=0.9',
+            const text = await this.http.fetchText('https://railnet.oebb.at/api/speed', {
+                headers: {
+                    'Accept': 'text/plain,*/*;q=0.9',
+                }
             });
 
             const speed = Number(text);

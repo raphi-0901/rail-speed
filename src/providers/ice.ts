@@ -1,5 +1,6 @@
-import { HttpClient, ProviderResult } from "../core/types.js";
+import { ProviderResult } from "../core/types.js";
 import {BaseProvider} from "../core/provider.js";
+import {HttpClient} from "../core/httpClient.js";
 
 export class IcePortalProvider extends BaseProvider {
     readonly name = 'ICEPortal';
@@ -10,15 +11,17 @@ export class IcePortalProvider extends BaseProvider {
 
     async fetch(): Promise<ProviderResult> {
         return this.wrapFetch(this.name, async () => {
-            const text = await this.http.get('https://iceportal.de/api1/rs/status', {
-                'Accept': 'application/json, text/plain, */*',
-                'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
-                // Without this the API returns 403
-                'User-Agent':
-                    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 ' +
-                    '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Cache-Control': 'no-cache',
-                'Pragma': 'no-cache',
+            const text = await this.http.fetchText('https://iceportal.de/api1/rs/status', {
+                headers: {
+                    'Accept': 'application/json, text/plain, */*',
+                    'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
+                    // Without this the API returns 403
+                    'User-Agent':
+                        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 ' +
+                        '(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    'Cache-Control': 'no-cache',
+                    'Pragma': 'no-cache',
+                }
             });
 
             let obj: any;
