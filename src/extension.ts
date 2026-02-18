@@ -16,6 +16,8 @@ const FAST_REFRESH = 1
 
 export default class RailSpeedExtension extends Extension {
     private _label: St.Label | null = null
+    private _indicator: Button | null = null
+
     private _timer: number | null = null
     private _currentInterval: number = 0
     private _LOGGER = Logger.getInstance()
@@ -30,8 +32,9 @@ export default class RailSpeedExtension extends Extension {
         // UI
         // -----------------------
         const labelContainer = new Button(0.0, 'railSpeed') // 0.0 = menu alignment
+
         const label = new St.Label({
-            text: '--',
+            text: '',
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.CENTER,
             y_expand: true,
@@ -39,7 +42,8 @@ export default class RailSpeedExtension extends Extension {
         labelContainer.add_child(label)
 
         this._label = label
-        Panel.addToStatusArea('railSpeed', labelContainer, 0)
+        this._indicator = labelContainer
+        Panel._addToPanelBox('railSpeed', labelContainer, 0, (Panel as any)._centerBox)
 
         this._LOGGER.info(`Enable ${this.metadata.uuid} (GLib v${GLib.MAJOR_VERSION}.${GLib.MINOR_VERSION}.${GLib.MICRO_VERSION})`);
 
@@ -52,9 +56,9 @@ export default class RailSpeedExtension extends Extension {
         // Providers
         // -----------------------
         const providers = [
-            new TestProvider(),
-            new IcePortalProvider(),
             new OebbProvider(),
+            new IcePortalProvider(),
+            new TestProvider(),
         ]
 
         // -----------------------
@@ -77,7 +81,9 @@ export default class RailSpeedExtension extends Extension {
                     this._orchestrator.resetAll()
                 }
                 // Optional immediate retry
-                this._update().catch(e => logError(e))
+                this._update().catch(e => {
+                    this._LOGGER.error(e, '_update() unhandled (network-changed)')
+                })
             }
         )
 
@@ -88,7 +94,9 @@ export default class RailSpeedExtension extends Extension {
         this._restartTimer(FAST_REFRESH)
 
         // Immediate first run
-        this._update().catch(e => logError(e))
+        this._update().catch(e => {
+            this._LOGGER.error(e, '_update() unhandled (enable)')
+        })
     }
 
     disable() {
@@ -113,10 +121,13 @@ export default class RailSpeedExtension extends Extension {
         // -----------------------
         // Destroy UI
         // -----------------------
-        if (this._label) {
-            this._label.destroy()
-            this._label = null
+        if (this._indicator) {
+            this._indicator.destroy()
+            this._indicator = null
         }
+
+        this._label = null
+
 
         // -----------------------
         // Drop core
@@ -125,6 +136,8 @@ export default class RailSpeedExtension extends Extension {
             this._orchestrator.destroy()
             this._orchestrator = null
         }
+
+        this._LOGGER.info('disabled')
     }
 
     _restartTimer(seconds: number) {
@@ -138,35 +151,40 @@ export default class RailSpeedExtension extends Extension {
             GLib.PRIORITY_DEFAULT,
             secs,
             () => {
-                this._update().catch(e => logError(e))
+                this._update().catch(e => {
+                    this._LOGGER.error(e, '_update() unhandled (timer)')
+                })
                 return GLib.SOURCE_CONTINUE
             }
         )
+
+        if (this._currentInterval !== secs) {
+            this._LOGGER.info(`timer interval -> ${secs}s`)
+        }
 
         this._currentInterval = secs
     }
 
     async _update() {
-        this._LOGGER.info(`Update`)
-
         if (!this._orchestrator || !this._label)
             return
 
         // Avoid pointless polling if offline
         if (this._netmon && !this._netmon.get_network_available()) {
+            this._LOGGER.warn(`offline detected -> skip polling`)
+
             this._label.set_text('')
             this._restartTimer(5)
             return
         }
 
         const result = await this._orchestrator.tryOnce()
-
         if (result.ok) {
             this._label.set_text(`🚆 ${result.speed} km/h`)
 
-            if (this._currentInterval !== FAST_REFRESH)
+            if (this._currentInterval !== FAST_REFRESH) {
                 this._restartTimer(FAST_REFRESH)
-
+            }
         } else {
             this._label.set_text('')
             this._restartTimer(result.nextWake)

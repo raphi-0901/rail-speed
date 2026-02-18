@@ -1,5 +1,6 @@
 import Soup from 'gi://Soup';
 import GLib from 'gi://GLib';
+import {Logger} from "./logger.js";
 
 /**
  * Options for fetchText()
@@ -13,6 +14,7 @@ export interface FetchOptions {
  */
 export class HttpClient {
     private _session: Soup.Session | null;
+    private readonly _LOGGER = Logger.getInstance();
 
     public constructor() {
         this._session = new Soup.Session();
@@ -22,6 +24,7 @@ export class HttpClient {
      * Cleanup resources
      */
     public destroy(): void {
+        this._LOGGER.debug(`destroyed session: ${this._session}`);
         // In GJS we can't really "close" the session,
         // but we can drop the reference.
         // Marking as any avoids strict-null complaints.
@@ -38,6 +41,7 @@ export class HttpClient {
         options: FetchOptions = {}
     ): Promise<string> {
         if (!this._session) {
+            this._LOGGER.error(`HttpClient destroyed`);
             throw new Error('HttpClient destroyed');
         }
 

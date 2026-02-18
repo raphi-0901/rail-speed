@@ -24,11 +24,14 @@ export class OebbProvider extends BaseProvider {
                 throw new Error('ÖBB: invalid numeric response');
             }
 
+            this._LOGGER.debug(`OEBB speed: ${speed}`);
+
             return speed;
         });
     }
 
     destroy(): void {
+        this._LOGGER.info(`${this.name}: destroy`);
         this._http.destroy();
     }
 }

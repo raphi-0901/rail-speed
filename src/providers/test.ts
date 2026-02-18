@@ -25,6 +25,7 @@ export class TestProvider extends BaseProvider {
     }
 
     destroy(): void {
+        this._LOGGER.info(`${this.name}: destroy`);
         this._http.destroy();
     }
 }

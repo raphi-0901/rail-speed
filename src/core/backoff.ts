@@ -12,11 +12,11 @@ export class ExponentialBackoff {
         return nowMicroSeconds >= this.nextAllowedMicroSeconds
     }
 
-    secondsUntilAllowed(nowUs: number): number {
-        if (this.isAllowed(nowUs)) {
+    secondsUntilAllowed(nowMicroSeconds: number): number {
+        if (this.isAllowed(nowMicroSeconds)) {
             return 0
         }
-        return Math.ceil((this.nextAllowedMicroSeconds - nowUs) / 1_000_000)
+        return Math.ceil((this.nextAllowedMicroSeconds - nowMicroSeconds) / 1_000_000)
     }
 
     markSuccess(): void {

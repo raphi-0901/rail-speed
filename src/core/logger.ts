@@ -1,4 +1,4 @@
-export type LogLevel = 'INFO' | 'WARN' | 'ERROR'
+export type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG'
 
 export class Logger {
     private static instance: Logger | null = null
@@ -22,7 +22,9 @@ export class Logger {
         switch(level) {
             case 'INFO': log(out); break
             case 'WARN': log(out); break
+            case 'DEBUG': log(out); break
             case 'ERROR': logError(out); break
+            default: log(level satisfies never)
         }
     }
 
@@ -32,6 +34,10 @@ export class Logger {
 
     warn(msg: string) {
         this.log('WARN', msg)
+    }
+
+    debug(msg: string) {
+        this.log('DEBUG', msg)
     }
 
     error(err: any, context = '') {

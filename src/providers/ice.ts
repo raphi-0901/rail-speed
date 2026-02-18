@@ -30,6 +30,8 @@ export class IcePortalProvider extends BaseProvider {
             try {
                 obj = JSON.parse(text);
             } catch {
+                this._LOGGER.debug(`invalid JSON from ICEPortal: ${text}`);
+
                 throw new Error('ICE: invalid JSON');
             }
 
@@ -38,11 +40,14 @@ export class IcePortalProvider extends BaseProvider {
                 throw new Error('ICE: missing/invalid "speed"');
             }
 
+            this._LOGGER.debug(`ICE speed: ${speed}`);
+
             return speed;
         });
     }
 
     destroy(): void {
+        this._LOGGER.info(`${this.name}: destroy`);
         this._http.destroy();
     }
 }
