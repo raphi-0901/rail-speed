@@ -121,7 +121,10 @@ export default class RailSpeedExtension extends Extension {
         // -----------------------
         // Drop core
         // -----------------------
-        this._orchestrator = null
+        if(this._orchestrator) {
+            this._orchestrator.destroy()
+            this._orchestrator = null
+        }
     }
 
     _restartTimer(seconds: number) {
