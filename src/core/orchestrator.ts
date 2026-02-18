@@ -1,5 +1,6 @@
-import { SpeedProvider, TimeSource } from './types.js'
+import { SpeedProvider } from './types.js'
 import { ExponentialBackoff } from './backoff.js'
+import GLib from "gi://GLib";
 
 export type OrchestratorResult = {
     ok: true
@@ -18,8 +19,7 @@ export class SpeedOrchestrator {
     }[]
 
     constructor(
-        providers: SpeedProvider[],
-        private readonly time: TimeSource
+        providers: SpeedProvider[]
     ) {
         this.entries = providers.map(p => ({
             provider: p,
@@ -33,8 +33,14 @@ export class SpeedOrchestrator {
         }
     }
 
+    destroy(): void {
+        for (const e of this.entries) {
+            e.provider.destroy()
+        }
+    }
+
     async tryOnce(): Promise<OrchestratorResult> {
-        const nowUs = this.time.nowUs()
+        const nowUs = GLib.get_monotonic_time()
         let soonest: number | null = null
 
         for (const entry of this.entries) {

@@ -9,7 +9,6 @@ import PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import { SpeedOrchestrator } from './core/orchestrator.js'
 import { IcePortalProvider } from './providers/ice.js'
 import { OebbProvider } from './providers/oebb.js'
-import {HttpClient} from "./core/httpClient.js";
 import {Logger} from "./core/logger.js";
 
 const FAST_REFRESH = 1
@@ -19,7 +18,6 @@ export default class RailSpeedExtension extends Extension {
     private _timer: number | null = null
     private _currentInterval: number = 0
     private _LOGGER = Logger.getInstance()
-    private _http: HttpClient | null = null
 
     private _orchestrator: SpeedOrchestrator | null = null
 
@@ -47,24 +45,20 @@ export default class RailSpeedExtension extends Extension {
         // -----------------------
         // Platform objects
         // -----------------------
-        this._http = new HttpClient()
         this._timer = null
 
         // -----------------------
         // Providers
         // -----------------------
         const providers = [
-            new IcePortalProvider(this._http),
-            new OebbProvider(this._http),
+            new IcePortalProvider(),
+            new OebbProvider(),
         ]
 
         // -----------------------
         // Core orchestrator
         // -----------------------
-        this._orchestrator = new SpeedOrchestrator(
-            providers,
-            this._time
-        )
+        this._orchestrator = new SpeedOrchestrator(providers)
 
         // -----------------------
         // Network monitor
@@ -121,13 +115,6 @@ export default class RailSpeedExtension extends Extension {
             this._label.destroy()
             this._label = null
         }
-
-        // -----------------------
-        // Drop platform objects
-        // -----------------------
-        this._session = null
-        this._http = null
-        this._time = null
 
         // -----------------------
         // Drop core

@@ -5,13 +5,15 @@ import {HttpClient} from "../core/httpClient.js";
 export class IcePortalProvider extends BaseProvider {
     readonly name = 'ICEPortal';
 
-    constructor(private readonly http: HttpClient) {
+    private _http = new HttpClient();
+
+    constructor() {
         super();
     }
 
     async fetch(): Promise<ProviderResult> {
         return this.wrapFetch(this.name, async () => {
-            const text = await this.http.fetchText('https://iceportal.de/api1/rs/status', {
+            const text = await this._http.fetchText('https://iceportal.de/api1/rs/status', {
                 headers: {
                     'Accept': 'application/json, text/plain, */*',
                     'Accept-Language': 'de-DE,de;q=0.9,en;q=0.8',
@@ -38,5 +40,9 @@ export class IcePortalProvider extends BaseProvider {
 
             return speed;
         });
+    }
+
+    destroy(): void {
+        this._http.destroy();
     }
 }

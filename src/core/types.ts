@@ -13,4 +13,5 @@ export type ProviderResult = {
 export interface SpeedProvider {
     readonly name: string
     fetch(): Promise<ProviderResult>
+    destroy(): void
 }

@@ -5,13 +5,15 @@ import {HttpClient} from "../core/httpClient.js";
 export class OebbProvider extends BaseProvider {
     readonly name = 'OEBB';
 
-    constructor(private readonly http: HttpClient) {
+    private _http = new HttpClient();
+
+    constructor() {
         super();
     }
 
     async fetch(): Promise<ProviderResult> {
         return this.wrapFetch(this.name, async () => {
-            const text = await this.http.fetchText('https://railnet.oebb.at/api/speed', {
+            const text = await this._http.fetchText('https://railnet.oebb.at/api/speed', {
                 headers: {
                     'Accept': 'text/plain,*/*;q=0.9',
                 }
@@ -24,5 +26,9 @@ export class OebbProvider extends BaseProvider {
 
             return speed;
         });
+    }
+
+    destroy(): void {
+        this._http.destroy();
     }
 }

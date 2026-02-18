@@ -2,7 +2,10 @@ import {type ProviderResult } from "./types.js";
 import {SpeedProvider} from "./types.js";
 
 export abstract class BaseProvider implements SpeedProvider {
+
     abstract readonly name: string
+
+    abstract destroy(): void
 
     abstract fetch(): Promise<ProviderResult>
 
