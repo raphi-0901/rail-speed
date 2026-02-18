@@ -1,29 +1,38 @@
 export class Logger {
     static instance = null;
-    sink;
-    tag;
-    constructor(tag, sink) {
-        this.tag = tag;
-        this.sink = sink;
-    }
-    static getInstance(tag = 'rail-speed', sink) {
+    tag = 'rail-speed';
+    static getInstance() {
         if (!Logger.instance) {
-            Logger.instance = new Logger(tag, sink);
+            Logger.instance = new Logger();
         }
         return Logger.instance;
     }
     now() {
         return new Date().toISOString();
     }
+    log(level, msg) {
+        const out = `[${this.tag}] ${this.now()} ${level} ${msg}`;
+        switch (level) {
+            case 'INFO':
+                log(out);
+                break;
+            case 'WARN':
+                log(out);
+                break;
+            case 'ERROR':
+                logError(out);
+                break;
+        }
+    }
     info(msg) {
-        this.sink?.log?.('INFO', this.tag, msg);
+        this.log('INFO', msg);
     }
     warn(msg) {
-        this.sink?.log?.('WARN', this.tag, msg);
+        this.log('WARN', msg);
     }
     error(err, context = '') {
         const msg = context ? `${context}: ${err}` : `${err}`;
-        this.sink?.log?.('ERROR', this.tag, msg);
+        this.log('ERROR', msg);
     }
 }
 //# sourceMappingURL=logger.js.map

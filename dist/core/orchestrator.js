@@ -1,9 +1,8 @@
 import { ExponentialBackoff } from './backoff.js';
+import GLib from "gi://GLib";
 export class SpeedOrchestrator {
-    time;
     entries;
-    constructor(providers, time) {
-        this.time = time;
+    constructor(providers) {
         this.entries = providers.map(p => ({
             provider: p,
             backoff: new ExponentialBackoff(2, 60, 2),
@@ -14,8 +13,13 @@ export class SpeedOrchestrator {
             e.backoff.markSuccess();
         }
     }
+    destroy() {
+        for (const e of this.entries) {
+            e.provider.destroy();
+        }
+    }
     async tryOnce() {
-        const nowUs = this.time.nowUs();
+        const nowUs = GLib.get_monotonic_time();
         let soonest = null;
         for (const entry of this.entries) {
             const { provider, backoff } = entry;

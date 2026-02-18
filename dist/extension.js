@@ -2,30 +2,25 @@ import St from 'gi://St';
 import Clutter from 'gi://Clutter';
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
-import Soup from 'gi://Soup';
-import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import { panel as Panel } from 'resource:///org/gnome/shell/ui/main.js';
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
-import PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import { Button } from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import { SpeedOrchestrator } from './core/orchestrator.js';
 import { IcePortalProvider } from './providers/ice.js';
 import { OebbProvider } from './providers/oebb.js';
-import { GnomeHttpClient } from './platform/gnome-fetch.js';
-import { GnomeTimeSource } from './platform/time.js';
 import { Logger } from "./core/logger.js";
+import { TestProvider } from "./providers/test.js";
 const FAST_REFRESH = 1;
 export default class RailSpeedExtension extends Extension {
     _label = null;
     _timer = null;
     _currentInterval = 0;
-    _session = null;
-    _http = null;
-    _time = null;
+    _LOGGER = Logger.getInstance();
     _orchestrator = null;
     _netmon = null;
     _netmonChangedId = 0;
-    _LOGGER = Logger.getInstance();
     enable() {
-        const labelContainer = new PanelMenu.Button(0.0, 'railSpeed');
+        const labelContainer = new Button(0.0, 'railSpeed');
         const label = new St.Label({
             text: '--',
             y_align: Clutter.ActorAlign.CENTER,
@@ -34,16 +29,15 @@ export default class RailSpeedExtension extends Extension {
         });
         labelContainer.add_child(label);
         this._label = label;
-        Main.panel.addToStatusArea('railSpeed', labelContainer, 0);
+        Panel.addToStatusArea('railSpeed', labelContainer, 0);
         this._LOGGER.info(`Enable ${this.metadata.uuid} (GLib v${GLib.MAJOR_VERSION}.${GLib.MINOR_VERSION}.${GLib.MICRO_VERSION})`);
-        this._session = new Soup.Session();
-        this._http = new GnomeHttpClient(this._session);
-        this._time = new GnomeTimeSource();
+        this._timer = null;
         const providers = [
-            new IcePortalProvider(this._http),
-            new OebbProvider(this._http),
+            new TestProvider(),
+            new IcePortalProvider(),
+            new OebbProvider(),
         ];
-        this._orchestrator = new SpeedOrchestrator(providers, this._time);
+        this._orchestrator = new SpeedOrchestrator(providers);
         this._netmon = Gio.NetworkMonitor.get_default();
         this._netmonChangedId = this._netmon.connect('network-changed', (_mon, available) => {
             this._LOGGER.info(`Network changed. Available: ${available}`);
@@ -70,9 +64,6 @@ export default class RailSpeedExtension extends Extension {
             this._label.destroy();
             this._label = null;
         }
-        this._session = null;
-        this._http = null;
-        this._time = null;
         this._orchestrator = null;
     }
     _restartTimer(seconds) {
