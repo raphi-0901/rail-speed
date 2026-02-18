@@ -48,7 +48,7 @@ export default class RailSpeedExtension extends Extension {
         // Platform objects
         // -----------------------
         this._http = new HttpClient()
-        // this._time = new GnomeTimeSource()
+        this._timer = null
 
         // -----------------------
         // Providers
