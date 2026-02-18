@@ -1,6 +1,8 @@
 import Soup from 'gi://Soup';
 import GLib from 'gi://GLib';
+import Gio from "gi://Gio";
 import {Logger} from "./logger.js";
+import Bytes = GLib.Bytes;
 
 /**
  * Options for fetchText()
@@ -31,17 +33,11 @@ export class HttpClient {
         this._session = null;
     }
 
-    /**
-     * Performs a GET request and returns the response body as text.
-     *
-     * @throws Error if HTTP status is not 200
-     */
-    public async fetchText(
+    public fetchText(
         url: string,
         options: FetchOptions = {}
-    ): Promise<string> {
+    ): { promise: Promise<string>; cancel: () => void } {
         if (!this._session) {
-            this._LOGGER.error(`HttpClient destroyed`);
             throw new Error('HttpClient destroyed');
         }
 
@@ -49,27 +45,47 @@ export class HttpClient {
 
         this._applyHeaders(message, options.headers);
 
-        const bytes = await this._session.send_and_read_async(
-            message,
-            GLib.PRIORITY_DEFAULT,
-            null
-        );
+        const cancellable = new Gio.Cancellable();
 
-        const status: number = message.get_status();
-        const body: string = new TextDecoder()
-            .decode(bytes.get_data() as unknown as ArrayBuffer)
-            .trim();
+        const promise = new Promise<string>(async (resolve, reject) => {
+            if(!this._session) {
+                return reject(new Error('HttpClient destroyed'));
+            }
 
-        if (status !== Soup.Status.OK) {
-            const reason: string =
-                message.get_reason_phrase?.() ?? '';
+            try {
+                const bytes = await this._session.send_and_read_async(
+                    message,
+                    GLib.PRIORITY_DEFAULT,
+                    // @ts-ignore
+                    cancellable
+                ) as unknown as Bytes | undefined;
 
-            throw new Error(
-                `HTTP ${status}${reason ? ` ${reason}` : ''}`
-            );
-        }
+                if(!bytes) {
+                    return reject(new Error('No response from server'));
+                }
 
-        return body;
+                const status = message.get_status();
+                const body = new TextDecoder()
+                    .decode(bytes.get_data() as unknown as ArrayBuffer)
+                    .trim();
+
+                if (status !== Soup.Status.OK) {
+                    const reason = message.get_reason_phrase?.() ?? '';
+                    reject(new Error(`HTTP ${status}${reason ? ` ${reason}` : ''}`));
+                } else {
+                    resolve(body);
+                }
+            } catch (e) {
+                reject(e);
+            }
+        });
+
+        return {
+            promise,
+            cancel: () => {
+                cancellable.cancel();
+            },
+        };
     }
 
     /**

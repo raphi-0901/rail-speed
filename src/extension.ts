@@ -2,19 +2,21 @@ import St from 'gi://St'
 import Clutter from 'gi://Clutter'
 import GLib from 'gi://GLib'
 import Gio from 'gi://Gio'
-import { panel as Panel } from 'resource:///org/gnome/shell/ui/main.js'
-import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
-import { Button } from 'resource:///org/gnome/shell/ui/panelMenu.js'
+import {panel as Panel} from 'resource:///org/gnome/shell/ui/main.js'
+import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js'
+import {Button} from 'resource:///org/gnome/shell/ui/panelMenu.js'
 
-import { SpeedOrchestrator } from './core/orchestrator.js'
-import { IcePortalProvider } from './providers/ice.js'
-import { OebbProvider } from './providers/oebb.js'
+import {SpeedOrchestrator} from './core/orchestrator.js'
+import {IcePortalProvider} from './providers/ice.js'
+import {OebbProvider} from './providers/oebb.js'
 import {Logger} from "./core/logger.js";
 import {TestProvider} from "./providers/test.js";
 
 const FAST_REFRESH = 1
 
 export default class RailSpeedExtension extends Extension {
+    private _updating = false
+
     private _label: St.Label | null = null
     private _indicator: Button | null = null
 
@@ -26,12 +28,13 @@ export default class RailSpeedExtension extends Extension {
 
     private _netmon: Gio.NetworkMonitor | null = null
     private _netmonChangedId: number = 0
+    private _netmonDebounce: number | null = null
 
     enable() {
         // -----------------------
         // UI
         // -----------------------
-        const labelContainer = new Button(0.0, 'railSpeed') // 0.0 = menu alignment
+        const labelContainer = new Button(0.0, 'railSpeed')
 
         const label = new St.Label({
             text: '',
@@ -76,14 +79,28 @@ export default class RailSpeedExtension extends Extension {
             (_mon, available) => {
                 this._LOGGER.info(`Network changed. Available: ${available}`)
 
-                // Reset all backoffs when network changes
-                if (this._orchestrator) {
-                    this._orchestrator.resetAll()
+                // cancel current debounce
+                if (this._netmonDebounce !== null) {
+                    GLib.source_remove(this._netmonDebounce)
+                    this._netmonDebounce = null
                 }
-                // Optional immediate retry
-                this._update().catch(e => {
-                    this._LOGGER.error(e, '_update() unhandled (network-changed)')
-                })
+
+                // wait 1s for network to stabilize before resetting backoff
+                this._netmonDebounce = GLib.timeout_add_seconds(
+                    GLib.PRIORITY_DEFAULT,
+                    1,
+                    () => {
+                        this._netmonDebounce = null
+
+                        if (this._orchestrator) {
+                            this._orchestrator.resetAll()
+                        }
+
+                        this._restartTimer(FAST_REFRESH)
+
+                        return GLib.SOURCE_REMOVE
+                    }
+                )
             }
         )
 
@@ -92,11 +109,6 @@ export default class RailSpeedExtension extends Extension {
         // -----------------------
         this._currentInterval = FAST_REFRESH
         this._restartTimer(FAST_REFRESH)
-
-        // Immediate first run
-        this._update().catch(e => {
-            this._LOGGER.error(e, '_update() unhandled (enable)')
-        })
     }
 
     disable() {
@@ -128,11 +140,10 @@ export default class RailSpeedExtension extends Extension {
 
         this._label = null
 
-
         // -----------------------
         // Drop core
         // -----------------------
-        if(this._orchestrator) {
+        if (this._orchestrator) {
             this._orchestrator.destroy()
             this._orchestrator = null
         }
@@ -145,16 +156,20 @@ export default class RailSpeedExtension extends Extension {
 
         if (this._timer) {
             GLib.source_remove(this._timer)
+            this._timer = null
         }
 
         this._timer = GLib.timeout_add_seconds(
             GLib.PRIORITY_DEFAULT,
             secs,
             () => {
+                this._timer = null
+
                 this._update().catch(e => {
                     this._LOGGER.error(e, '_update() unhandled (timer)')
                 })
-                return GLib.SOURCE_CONTINUE
+
+                return GLib.SOURCE_REMOVE
             }
         )
 
@@ -166,28 +181,35 @@ export default class RailSpeedExtension extends Extension {
     }
 
     async _update() {
-        if (!this._orchestrator || !this._label)
+        if (this._updating) {
             return
+        }
+
+        if (!this._orchestrator || !this._label) {
+            return
+        }
 
         // Avoid pointless polling if offline
         if (this._netmon && !this._netmon.get_network_available()) {
             this._LOGGER.warn(`offline detected -> skip polling`)
-
             this._label.set_text('')
             this._restartTimer(5)
+
             return
         }
 
-        const result = await this._orchestrator.tryOnce()
-        if (result.ok) {
-            this._label.set_text(`🚆 ${result.speed} km/h`)
-
-            if (this._currentInterval !== FAST_REFRESH) {
+        this._updating = true
+        try {
+            const result = await this._orchestrator.tryOnce()
+            if (result.ok) {
+                this._label.set_text(`🚆 ${result.speed} km/h`)
                 this._restartTimer(FAST_REFRESH)
+            } else {
+                this._label.set_text('')
+                this._restartTimer(result.nextWake)
             }
-        } else {
-            this._label.set_text('')
-            this._restartTimer(result.nextWake)
+        } finally {
+            this._updating = false
         }
     }
 }

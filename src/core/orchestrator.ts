@@ -49,48 +49,85 @@ export class SpeedOrchestrator {
     }
 
     async tryOnce(): Promise<OrchestratorResult> {
-        const startMicroSeconds = GLib.get_monotonic_time()
-        let soonest: number | null = null
+        const startMicroSeconds = GLib.get_monotonic_time();
+        let soonest: number | null = null;
+
+        // 1️⃣ Filter allowed providers and prepare tasks
+        const tasks: {
+            entry: { provider: SpeedProvider; backoff: ExponentialBackoff };
+            cancel: () => void;
+            promise: Promise<OrchestratorResult>;
+        }[] = [];
 
         for (const entry of this.entries) {
-            const { provider, backoff } = entry
+            const { provider, backoff } = entry;
 
             if (!backoff.isAllowed(startMicroSeconds)) {
-                const wait = backoff.secondsUntilAllowed(startMicroSeconds)
+                const wait = backoff.secondsUntilAllowed(startMicroSeconds);
                 this._LOGGER.info(
                     `provider skip -> ${provider.name} (backoff ${wait}s)`
-                )
-
-                soonest = soonest === null ? wait : Math.min(soonest, wait)
-                continue
+                );
+                soonest = soonest === null ? wait : Math.min(soonest, wait);
+                continue;
             }
 
-            this._LOGGER.info(`provider try  -> ${provider.name}`)
-            const result = await provider.fetch()
-            const endMicroSeconds = GLib.get_monotonic_time()
-            const deltaMs = Math.round((endMicroSeconds - startMicroSeconds) / 1000)
+            this._LOGGER.info(`provider try  -> ${provider.name}`);
 
-            if (result.ok && result.speed !== null) {
-                backoff.markSuccess()
+            // Each provider should return a cancelable task
+            const { promise, cancel } = provider.fetch();
 
-                this._LOGGER.info(
-                    `provider ok   <- ${provider.name} (${deltaMs}ms) speed=${result.speed}`
-                )
+            // Wrap promise to handle backoff & orchestrator result
+            const wrappedPromise = (async (): Promise<OrchestratorResult> => {
+                try {
+                    const result = await promise;
 
-                return {
-                    ok: true,
-                    speed: result.speed,
-                    provider: result.provider,
-                    latency: result.latencyMs,
+                    if (result.ok && result.speed !== null) {
+                        backoff.markSuccess();
+
+                        const deltaMs = Math.round(
+                            (GLib.get_monotonic_time() - startMicroSeconds) / 1000
+                        );
+
+                        this._LOGGER.info(
+                            `provider ok   <- ${provider.name} (${deltaMs}ms)`
+                        );
+
+                        return {
+                            ok: true,
+                            speed: result.speed,
+                            provider: result.provider,
+                            latency: result.latencyMs,
+                        };
+                    }
+
+                    // Failure counts as "did not succeed"
+                    backoff.markFailure(startMicroSeconds);
+                    throw new Error("provider failed");
+                } catch {
+                    backoff.markFailure(startMicroSeconds);
+                    throw new Error("provider failed");
                 }
-            }
+            })();
 
-            backoff.markFailure(startMicroSeconds)
+            tasks.push({ entry, promise: wrappedPromise, cancel });
         }
 
-        return {
-            ok: false,
-            nextWake: soonest ?? 60
+        // 2️⃣ No allowed providers? Return nextWake
+        if (tasks.length === 0) {
+            return { ok: false, nextWake: soonest ?? 60 };
+        }
+
+        // 3️⃣ Race tasks with Promise.any
+        try {
+            const firstResult = await Promise.any(tasks.map(t => t.promise));
+
+            // Cancel all remaining tasks to stop network requests
+            for (const t of tasks) t.cancel();
+
+            return firstResult;
+        } catch {
+            // All failed
+            return { ok: false, nextWake: soonest ?? 60 };
         }
     }
 }

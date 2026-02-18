@@ -12,6 +12,9 @@ export type ProviderResult = {
 
 export interface SpeedProvider {
     readonly name: string
-    fetch(): Promise<ProviderResult>
+    fetch(): {
+        promise: Promise<ProviderResult>
+        cancel: () => void
+    }
     destroy(): void
 }
