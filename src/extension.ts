@@ -101,7 +101,6 @@ export default class RailSpeedExtension extends Extension {
         const graphArea = new St.DrawingArea({
             width: 400,
             height: 160,
-            style: 'background-color: rgba(0,0,0,0.3); border-radius: 4px;'
         })
 
         graphArea.connect('repaint', (area) => {
@@ -148,8 +147,8 @@ export default class RailSpeedExtension extends Extension {
         const [totalWidth, totalHeight] = area.get_surface_size()
 
         // ── Margins: labels live outside the plot area ──────────────────────
-        const leftMargin   = 36  // space for Y-axis labels (km/h values)
-        const rightMargin  = 8   // small breathing room on the right
+        const leftMargin   = cr.textExtents('000').width + 4  // space for Y-axis labels (km/h values)
+        const rightMargin  = cr.textExtents('000').width + 4   // small breathing room on the right
         const topMargin    = 8   // small breathing room on top
         const bottomMargin = 18  // space for X-axis time labels
 
@@ -158,6 +157,11 @@ export default class RailSpeedExtension extends Extension {
         const plotY = topMargin
         const plotW = totalWidth  - leftMargin - rightMargin
         const plotH = totalHeight - topMargin  - bottomMargin
+
+        // Draw background only within the plot area
+        cr.setSourceRGBA(0, 0, 0, 0.3)
+        cr.rectangle(plotX, plotY, plotW, plotH)
+        cr.fill()
 
         const now = GLib.get_monotonic_time() / 1000
         const tenMinutesAgo = now - 10 * 60 * 1000
