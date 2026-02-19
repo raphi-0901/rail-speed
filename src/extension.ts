@@ -22,8 +22,8 @@ export default class RailSpeedExtension extends Extension {
 
     private _label: St.Label | null = null
     private _indicator: Button | null = null
-    private _maxSpeedItem: PopupMenuItem | null = null
-    private _avgSpeedItem: PopupMenuItem | null = null
+    private _maxSpeedLabel: St.Label | null = null
+    private _avgSpeedLabel: St.Label | null = null
     private _bigSpeedLabel: St.Label | null = null
     private _providerLabel: St.Label | null = null
 
@@ -92,8 +92,42 @@ export default class RailSpeedExtension extends Extension {
         this._bigSpeedLabel = bigLabel
 
         // Add items to the dropdown menu
-        const maxSpeedItem = new PopupMenu.PopupMenuItem('Max: -- km/h')
-        const avgSpeedItem = new PopupMenu.PopupMenuItem('Avg: -- km/h')
+        // ---- Max / Avg side-by-side row ----
+        const statsItem = new PopupMenu.PopupBaseMenuItem({ reactive: false })
+
+        const statsBox = new St.BoxLayout({
+            vertical: false,
+            x_expand: true,
+            x_align: Clutter.ActorAlign.FILL,
+        })
+
+        // Max label
+        const maxSpeedLabel = new St.Label({
+            x_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+        })
+        maxSpeedLabel.clutterText.set_use_markup(true)
+
+        // Vertical separator
+        const separator = new St.Widget({
+            style_class: 'popup-separator-menu-item',
+            width: 1,
+            y_expand: true,
+        })
+        separator.set_style('background-color: rgba(255,255,255,0.2);')
+
+        // Avg label
+        const avgSpeedLabel = new St.Label({
+            x_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+        })
+        avgSpeedLabel.clutterText.set_use_markup(true)
+
+        statsBox.add_child(maxSpeedLabel)
+        statsBox.add_child(separator)
+        statsBox.add_child(avgSpeedLabel)
+
+        statsItem.add_child(statsBox)
 
         // Wrap DrawingArea in a PopupBaseMenuItem so it fits the menu
         const graphItem = new PopupMenu.PopupBaseMenuItem({ reactive: false })
@@ -109,12 +143,6 @@ export default class RailSpeedExtension extends Extension {
 
         graphItem.add_child(graphArea)
 
-        // Disable the items so they act as labels (not clickable)
-        maxSpeedItem.sensitive = false
-        maxSpeedItem.label.clutterText.set_use_markup(true)
-        avgSpeedItem.sensitive = false
-        avgSpeedItem.label.clutterText.set_use_markup(true)
-
         // ---------- Provider footer ----------
         const providerItem = new PopupMenu.PopupBaseMenuItem({ reactive: false })
         const providerLabel = new St.Label({
@@ -126,8 +154,7 @@ export default class RailSpeedExtension extends Extension {
         if (indicator.menu instanceof PopupMenu.PopupMenu) {
             indicator.menu.addMenuItem(headerItem)
             indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
-            indicator.menu.addMenuItem(maxSpeedItem)
-            indicator.menu.addMenuItem(avgSpeedItem)
+            indicator.menu.addMenuItem(statsItem)
             indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
             indicator.menu.addMenuItem(graphItem)
             indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
@@ -136,8 +163,8 @@ export default class RailSpeedExtension extends Extension {
 
         this._label = label
         this._indicator = indicator
-        this._maxSpeedItem = maxSpeedItem
-        this._avgSpeedItem = avgSpeedItem
+        this._maxSpeedLabel = maxSpeedLabel
+        this._avgSpeedLabel = avgSpeedLabel
         this._providerLabel = providerLabel
         this._graphArea = graphArea
 
@@ -461,8 +488,8 @@ export default class RailSpeedExtension extends Extension {
         }
 
         this._label = null
-        this._maxSpeedItem = null
-        this._avgSpeedItem = null
+        this._maxSpeedLabel = null
+        this._avgSpeedLabel = null
         this._graphArea = null
 
         this._speedHistory = []
@@ -509,7 +536,7 @@ export default class RailSpeedExtension extends Extension {
             return
         }
 
-        if (!this._orchestrator || !this._label || !this._indicator || !this._maxSpeedItem || !this._avgSpeedItem || !this._graphArea || !this._bigSpeedLabel || !this._providerLabel) {
+        if (!this._orchestrator || !this._label || !this._indicator || !this._maxSpeedLabel || !this._avgSpeedLabel || !this._graphArea || !this._bigSpeedLabel || !this._providerLabel) {
             return
         }
 
@@ -548,13 +575,13 @@ export default class RailSpeedExtension extends Extension {
                 })
                 this._graphArea.queue_repaint()
 
-                this._avgSpeedItem.label.clutterText.set_use_markup(true)
-                this._avgSpeedItem.label.clutterText.set_markup(
+                this._avgSpeedLabel.clutterText.set_use_markup(true)
+                this._avgSpeedLabel.clutterText.set_markup(
                     `<b>Avg</b>: ${Math.round(this.avgSpeed)} km/h`
                 )
 
-                this._maxSpeedItem.label.clutterText.set_use_markup(true)
-                this._maxSpeedItem.label.clutterText.set_markup(
+                this._maxSpeedLabel.clutterText.set_use_markup(true)
+                this._maxSpeedLabel.clutterText.set_markup(
                     `<b>Max</b>: ${Math.round(this.maxSpeed)} km/h`
                 )
 
