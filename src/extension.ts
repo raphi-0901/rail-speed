@@ -24,7 +24,7 @@ export default class RailSpeedExtension extends Extension {
     private _speedItem: PopupMenuItem | null = null
     private _routeItem: PopupMenuItem | null = null
     private _graphArea: St.DrawingArea | null = null
-    private _speedHistory: number[] = []
+    private _speedHistory: {timestamp: number, speed: number}[] = []
 
     private _timer: number | null = null
     private _currentInterval: number = 0
@@ -96,15 +96,30 @@ export default class RailSpeedExtension extends Extension {
     private _drawGraph(area: St.DrawingArea) {
         const cr = area.get_context()
         const [width, height] = area.get_surface_size()
-        const history = this._speedHistory
+        const now = GLib.get_monotonic_time() / 1000
+        const tenMinutesAgo = now - 10 * 60 * 1000
+        const speedHistoryOfLast10Minutes = this._speedHistory.filter(item => item.timestamp > tenMinutesAgo)
 
-        if (!cr || history.length < 2) {
+        if (!cr || speedHistoryOfLast10Minutes.length < 2) {
             cr?.$dispose()
             return
         }
 
-        const max = Math.max(...history, 50)  // at least 50 km/h scale
+        // --- Time range (relative positioning) ---
+        const oldest = speedHistoryOfLast10Minutes.at(0)!.timestamp
+        const newest = speedHistoryOfLast10Minutes.at(-1)!.timestamp
+        const timeRange = Math.max(newest - oldest, 1)
+
+        // --- Average (ALL time history) ---
+        const avg = this._speedHistory.length > 0
+            ? this._speedHistory.reduce((acc, { speed }) => acc + speed, 0) / this._speedHistory.length
+            : 0
+
+        // --- Y scaling based only on visible data ---
+        const visibleSpeeds = speedHistoryOfLast10Minutes.map(p => p.speed)
+        const max = Math.max(...visibleSpeeds, avg, 50)
         const min = 0
+        const yRange = Math.max(max - min, 1)
 
         // Background
         cr.setSourceRGBA(0, 0, 0, 0.0)
@@ -120,44 +135,92 @@ export default class RailSpeedExtension extends Extension {
             cr.stroke()
         }
 
-        // Speed line
+        // Average line
+        if (avg > 0) {
+            const avgY = height - ((avg - min) / (max - min)) * height
+
+            cr.setSourceRGBA(1.0, 0.6, 0.2, 0.9)  // orange
+            cr.setLineWidth(1.5)
+            cr.setDash([4.0, 4.0], 0)  // dashed
+
+            cr.moveTo(0, avgY)
+            cr.lineTo(width, avgY)
+            cr.stroke()
+
+            cr.setDash([], 0) // reset dash
+
+            // Avg label
+            cr.setFontSize(10)
+            cr.moveTo(4, avgY - 4)
+            cr.showText(`avg ${Math.round(avg)}`)
+        }
+
+        // --- Draw speed line (time-based X positioning) ---
         cr.setSourceRGBA(0.2, 0.8, 1.0, 0.9)  // cyan-ish
         cr.setLineWidth(2)
 
-        const xStep = width / (history.length - 1)
+        speedHistoryOfLast10Minutes.forEach((point, i) => {
+            const x =
+                ((point.timestamp - oldest) / timeRange) * width
 
-        history.forEach((speed, i) => {
-            const x = i * xStep
-            const y = height - ((speed - min) / (max - min)) * height
+            const y =
+                height -
+                ((point.speed - min) / yRange) * height
 
             if (i === 0) {
                 cr.moveTo(x, y)
-            }
-            else {
+            } else {
                 cr.lineTo(x, y)
             }
         })
+
         cr.stroke()
 
         // Fill under the line
         cr.setSourceRGBA(0.2, 0.8, 1.0, 0.15)
-        history.forEach((speed, i) => {
-            const x = i * xStep
-            const y = height - ((speed - min) / (max - min)) * height
+
+        speedHistoryOfLast10Minutes.forEach((point, i) => {
+            const x =
+                ((point.timestamp - oldest) / timeRange) * width
+
+            const y =
+                height -
+                ((point.speed - min) / yRange) * height
+
             if (i === 0) {
                 cr.moveTo(x, y)
-            }
-            else {
+            } else {
                 cr.lineTo(x, y)
             }
         })
-        cr.lineTo((history.length - 1) * xStep, height)
+
+        // Close to bottom
+        const lastPoint = speedHistoryOfLast10Minutes.at(-1)!
+        const lastX =
+            ((lastPoint.timestamp - oldest) / timeRange) * width
+
+        cr.lineTo(lastX, height)
         cr.lineTo(0, height)
         cr.closePath()
         cr.fill()
 
+        // --- Datapoint dots ---
+        cr.setSourceRGBA(0.2, 0.8, 1.0, 1.0)
+
+        speedHistoryOfLast10Minutes.forEach(point => {
+            const x =
+                ((point.timestamp - oldest) / timeRange) * width
+
+            const y =
+                height -
+                ((point.speed - min) / yRange) * height
+
+            cr.arc(x, y, 2.5, 0, 2 * Math.PI)
+            cr.fill()
+        })
+
         // Current speed label
-        const latest = history[history.length - 1]
+        const latest = speedHistoryOfLast10Minutes.at(-1)!.speed
         cr.setSourceRGBA(1, 1, 1, 0.8)
         cr.setFontSize(10)
         cr.moveTo(width - cr.textExtents(`${latest}`).width - 4, 14)
@@ -337,10 +400,10 @@ export default class RailSpeedExtension extends Extension {
                 this._label.set_text(`🚆 ${result.speed} km/h`)
 
                 // Push to history
-                this._speedHistory.push(result.speed)
-                if (this._speedHistory.length > 60) {
-                    this._speedHistory.shift()
-                }
+                this._speedHistory.push({
+                    speed: result.speed,
+                    timestamp: result.timestamp,
+                })
                 this._graphArea?.queue_repaint()
 
                 this._restartTimer(FAST_REFRESH)

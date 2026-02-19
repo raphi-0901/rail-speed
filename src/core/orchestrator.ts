@@ -8,6 +8,7 @@ export type OrchestratorResult = {
     speed: number
     provider: string
     latency: number
+    timestamp: number
 } | {
     ok: false
     nextWake: number
@@ -97,6 +98,7 @@ export class SpeedOrchestrator {
                             speed: result.speed,
                             provider: result.provider,
                             latency: result.latencyMs,
+                            timestamp: GLib.get_monotonic_time() / 1000
                         };
                     }
 
