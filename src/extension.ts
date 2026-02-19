@@ -13,6 +13,7 @@ import {OebbProvider} from './providers/oebb.js'
 import {Logger} from "./core/logger.js";
 import {TestProvider} from "./providers/test.js";
 import {PopupMenuItem} from "@girs/gnome-shell/ui/popupMenu";
+import {timeAgo} from "./core/utils/timeAgo.js";
 
 const FAST_REFRESH = 1
 
@@ -23,6 +24,9 @@ export default class RailSpeedExtension extends Extension {
     private _indicator: Button | null = null
     private _maxSpeedItem: PopupMenuItem | null = null
     private _avgSpeedItem: PopupMenuItem | null = null
+    private _bigSpeedLabel: St.Label | null = null
+    private _providerLabel: St.Label | null = null
+
     private _graphArea: St.DrawingArea | null = null
     private _speedHistory: {timestamp: number, speed: number}[] = []
 
@@ -59,10 +63,19 @@ export default class RailSpeedExtension extends Extension {
         })
         indicator.add_child(label)
 
+        // ---------- Big speed header ----------
+        const headerItem = new PopupMenu.PopupBaseMenuItem({ reactive: false })
+        const bigLabel = new St.Label({
+            text: '-- km/h',
+            style: 'font-size: 22px; font-weight: bold; padding: 6px 0;'
+        })
+        headerItem.add_child(bigLabel)
+
+        this._bigSpeedLabel = bigLabel
+
         // Add items to the dropdown menu
-        const maxSpeedItem = new PopupMenu.PopupMenuItem('Max Speed: -')
-        const avgSpeedItem = new PopupMenu.PopupMenuItem('Avg Speed: -')
-        const separator = new PopupMenu.PopupSeparatorMenuItem()
+        const maxSpeedItem = new PopupMenu.PopupMenuItem('Max: -- km/h')
+        const avgSpeedItem = new PopupMenu.PopupMenuItem('Avg: -- km/h')
 
         // Wrap DrawingArea in a PopupBaseMenuItem so it fits the menu
         const graphItem = new PopupMenu.PopupBaseMenuItem({ reactive: false })
@@ -82,17 +95,30 @@ export default class RailSpeedExtension extends Extension {
         maxSpeedItem.sensitive = false
         avgSpeedItem.sensitive = false
 
+        // ---------- Provider footer ----------
+        const providerItem = new PopupMenu.PopupBaseMenuItem({ reactive: false })
+        const providerLabel = new St.Label({
+            text: '',
+            style: 'font-size: 10px; opacity: 0.6; padding-top: 6px;'
+        })
+        providerItem.add_child(providerLabel)
+
         if (indicator.menu instanceof PopupMenu.PopupMenu) {
+            indicator.menu.addMenuItem(headerItem)
+            indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
             indicator.menu.addMenuItem(maxSpeedItem)
             indicator.menu.addMenuItem(avgSpeedItem)
-            indicator.menu.addMenuItem(separator)
+            indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
             indicator.menu.addMenuItem(graphItem)
+            indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
+            indicator.menu.addMenuItem(providerItem)
         }
 
         this._label = label
         this._indicator = indicator
         this._maxSpeedItem = maxSpeedItem
         this._avgSpeedItem = avgSpeedItem
+        this._providerLabel = providerLabel
         this._graphArea = graphArea
 
         Panel.addToStatusArea('railSpeed', indicator, 0, 'center')
@@ -380,7 +406,7 @@ export default class RailSpeedExtension extends Extension {
             return
         }
 
-        if (!this._orchestrator || !this._label || !this._indicator || !this._maxSpeedItem || !this._avgSpeedItem || !this._graphArea) {
+        if (!this._orchestrator || !this._label || !this._indicator || !this._maxSpeedItem || !this._avgSpeedItem || !this._graphArea || !this._bigSpeedLabel || !this._providerLabel) {
             return
         }
 
@@ -388,6 +414,7 @@ export default class RailSpeedExtension extends Extension {
         if (this._netmon && !this._netmon.get_network_available()) {
             this._LOGGER.warn(`offline detected -> skip polling`)
             this._label.set_text('')
+            this._updateProviderLabel()
             this._restartTimer(5)
 
             return
@@ -398,6 +425,7 @@ export default class RailSpeedExtension extends Extension {
             const result = await this._orchestrator.tryOnce()
             if (result.ok) {
                 this._label.set_text(`🚆 ${result.speed} km/h`)
+                this._providerLabel.set_text(`${result.provider} · Live`)
 
                 // reset stats if provider changed
                 if(result.provider !== this._activeProvider) {
@@ -411,15 +439,37 @@ export default class RailSpeedExtension extends Extension {
                     timestamp: result.timestamp,
                 })
                 this._graphArea?.queue_repaint()
-                this._avgSpeedItem.label.set_text(`Avg Speed: ${Math.round(this.avgSpeed)} km/h`)
-                this._maxSpeedItem.label.set_text(`Max Speed: ${Math.round(this.maxSpeed)} km/h`)
+                this._avgSpeedItem.label.set_text(`Avg: ${Math.round(this.avgSpeed)} km/h`)
+                this._maxSpeedItem.label.set_text(`Max: ${Math.round(this.maxSpeed)} km/h`)
 
+                if (result.speed < 3) {
+                    this._bigSpeedLabel.set_text('Stopped')
+                } else {
+                    this._bigSpeedLabel.set_text(`${result.speed} km/h`)
+                }
                 this._restartTimer(FAST_REFRESH)
             } else {
+                this._updateProviderLabel()
                 this._restartTimer(result.nextWake)
             }
         } finally {
             this._updating = false
+        }
+    }
+
+    private _updateProviderLabel() {
+        if(!this._providerLabel) {
+            return
+        }
+
+        const lastUpdate = this._speedHistory.at(-1)?.timestamp
+        const provider = this._activeProvider ?? "No provider"
+
+        if(lastUpdate) {
+            this._providerLabel.set_text(`${provider} · ${timeAgo(lastUpdate)}`)
+        }
+        else {
+            this._providerLabel.set_text(`${provider} · Not synchronized yet`)
         }
     }
 }
