@@ -160,7 +160,7 @@ export default class RailSpeedExtension extends Extension {
         const timeRange = Math.max(newest - oldest, 1)
 
         // --- Y scaling based only on visible data ---
-        const visibleSpeeds = speedHistoryOfLast10Minutes.map(p => p.speed)
+        const visibleSpeeds = speedHistoryOfLast10Minutes.map(p => p.speed).filter(s => s !== null)
         const max = Math.max(...visibleSpeeds, this.avgSpeed, 50)
         const min = 0
         const yRange = Math.max(max - min, 1)
@@ -203,16 +203,21 @@ export default class RailSpeedExtension extends Extension {
         cr.setSourceRGBA(0.2, 0.8, 1.0, 0.9)  // cyan-ish
         cr.setLineWidth(2)
 
-        speedHistoryOfLast10Minutes.forEach((point, i) => {
-            const x =
-                ((point.timestamp - oldest) / timeRange) * width
+        let penDown = false
 
-            const y =
-                height -
-                ((point.speed - min) / yRange) * height
+        speedHistoryOfLast10Minutes.forEach((point) => {
+            const x = ((point.timestamp - oldest) / timeRange) * width
 
-            if (i === 0) {
+            if (point.speed === null) {
+                penDown = false
+                return
+            }
+
+            const y = height - ((point.speed - min) / yRange) * height
+
+            if (!penDown) {
                 cr.moveTo(x, y)
+                penDown = true
             } else {
                 cr.lineTo(x, y)
             }
@@ -220,57 +225,75 @@ export default class RailSpeedExtension extends Extension {
 
         cr.stroke()
 
-        // Fill under the line
+        // --- Fill under the line — segment-aware (handles null gaps) ---
         cr.setSourceRGBA(0.2, 0.8, 1.0, 0.15)
 
-        speedHistoryOfLast10Minutes.forEach((point, i) => {
-            const x =
-                ((point.timestamp - oldest) / timeRange) * width
+        let segmentStart: { x: number; y: number } | null = null
+        let segmentLastX = 0
 
-            const y =
-                height -
-                ((point.speed - min) / yRange) * height
+        for (const point of speedHistoryOfLast10Minutes) {
+            const x = ((point.timestamp - oldest) / timeRange) * width
 
-            if (i === 0) {
+            if (point.speed === null) {
+                if (segmentStart !== null) {
+                    cr.lineTo(segmentLastX, height)
+                    cr.lineTo(segmentStart.x, height)
+                    cr.closePath()
+                    cr.fill()
+                    segmentStart = null
+                }
+                continue
+            }
+
+            const y = height - ((point.speed - min) / yRange) * height
+
+            if (segmentStart === null) {
+                cr.newPath()
                 cr.moveTo(x, y)
+                segmentStart = { x, y }
             } else {
                 cr.lineTo(x, y)
             }
-        })
 
-        // Close to bottom
-        const lastPoint = speedHistoryOfLast10Minutes.at(-1)!
-        const lastX =
-            ((lastPoint.timestamp - oldest) / timeRange) * width
+            segmentLastX = x
+        }
 
-        cr.lineTo(lastX, height)
-        cr.lineTo(0, height)
-        cr.closePath()
-        cr.fill()
+        // Close any trailing open segment
+        if (segmentStart !== null) {
+            cr.lineTo(segmentLastX, height)
+            cr.lineTo(segmentStart.x, height)
+            cr.closePath()
+            cr.fill()
+        }
 
         // --- Datapoint dots ---
-        cr.setSourceRGBA(0.2, 0.8, 1.0, 1.0)
-
         speedHistoryOfLast10Minutes.forEach(point => {
-            const x =
-                ((point.timestamp - oldest) / timeRange) * width
+            const x = ((point.timestamp - oldest) / timeRange) * width
 
-            const y =
-                height -
-                ((point.speed - min) / yRange) * height
-
-            cr.arc(x, y, 2.5, 0, 2 * Math.PI)
-            cr.fill()
+            if (point.speed === null) {
+                // Subtle vertical gap marker
+                cr.setSourceRGBA(1.0, 0.3, 0.3, 0.3)
+                cr.setLineWidth(1)
+                cr.moveTo(x, 0)
+                cr.lineTo(x, height)
+                cr.stroke()
+            } else {
+                const y = height - ((point.speed - min) / yRange) * height
+                cr.setSourceRGBA(0.2, 0.8, 1.0, 1.0)
+                cr.arc(x, y, 2.5, 0, 2 * Math.PI)
+                cr.fill()
+            }
         })
 
         // Current speed label
         const latest = speedHistoryOfLast10Minutes.at(-1)!.speed
         cr.setSourceRGBA(1, 1, 1, 0.8)
         cr.setFontSize(10)
-        cr.moveTo(width - cr.textExtents(`${latest}`).width - 4, 14)
-        cr.showText(`${latest}`)
+        const latestText = latest === null ? 'Offline' : `${latest}`
+        cr.moveTo(width - cr.textExtents(latestText).width - 4, 14)
+        cr.showText(latestText)
 
-        // Max label
+        // Scale labels
         cr.moveTo(4, height - 4)
         cr.showText(`0`)
         cr.moveTo(4, 14)
@@ -330,7 +353,7 @@ export default class RailSpeedExtension extends Extension {
                             this._orchestrator.resetAll()
                         }
 
-                        this._restartTimer(FAST_REFRESH)
+                        this._update()
 
                         return GLib.SOURCE_REMOVE
                     }
@@ -420,6 +443,7 @@ export default class RailSpeedExtension extends Extension {
     }
 
     async _update() {
+
         if (this._updating) {
             return
         }
@@ -435,8 +459,12 @@ export default class RailSpeedExtension extends Extension {
             if(lastSpeed) {
                 this._label.set_style("color: orange;");
             }
+
+            // add a null point to the graph to indicate offline
+            this._speedHistory.push({speed: null, timestamp: GLib.get_monotonic_time() / 1000 })
+            this._graphArea?.queue_repaint()
             this._updateProviderLabel()
-            this._restartTimer(1)
+            this._restartTimer(FAST_REFRESH)
 
             return
         }
