@@ -5,12 +5,14 @@ import Gio from 'gi://Gio'
 import {panel as Panel} from 'resource:///org/gnome/shell/ui/main.js'
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js'
 import {Button} from 'resource:///org/gnome/shell/ui/panelMenu.js'
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 
 import {SpeedOrchestrator} from './core/orchestrator.js'
 import {IcePortalProvider} from './providers/ice.js'
 import {OebbProvider} from './providers/oebb.js'
 import {Logger} from "./core/logger.js";
 import {TestProvider} from "./providers/test.js";
+import {PopupMenuItem} from "@girs/gnome-shell/ui/popupMenu";
 
 const FAST_REFRESH = 1
 
@@ -19,6 +21,8 @@ export default class RailSpeedExtension extends Extension {
 
     private _label: St.Label | null = null
     private _indicator: Button | null = null
+    private _speedItem: PopupMenuItem | null = null
+    private _routeItem: PopupMenuItem | null = null
 
     private _timer: number | null = null
     private _currentInterval: number = 0
@@ -30,23 +34,47 @@ export default class RailSpeedExtension extends Extension {
     private _netmonChangedId: number = 0
     private _netmonDebounce: number | null = null
 
-    enable() {
-        // -----------------------
-        // UI
-        // -----------------------
-        const labelContainer = new Button(0.0, 'railSpeed')
+    private setupUI() {
+        // Create the panel button (it has a .menu built in)
+        const indicator = new Button(0.0, 'railSpeed')
 
+        // The label shown in the panel bar
         const label = new St.Label({
             text: '',
             y_align: Clutter.ActorAlign.CENTER,
             x_align: Clutter.ActorAlign.CENTER,
             y_expand: true,
         })
-        labelContainer.add_child(label)
+        indicator.add_child(label)
+
+        // Add items to the dropdown menu
+        const speedItem = new PopupMenu.PopupMenuItem('Speed: —')
+        const routeItem = new PopupMenu.PopupMenuItem('Route: unknown')
+        const separator = new PopupMenu.PopupSeparatorMenuItem()
+        const infoLabel = new PopupMenu.PopupMenuItem('Train info will appear here')
+
+        // Disable the items so they act as labels (not clickable)
+        speedItem.sensitive = false
+        routeItem.sensitive = false
+        infoLabel.sensitive = false
+
+        if (indicator.menu instanceof PopupMenu.PopupMenu) {
+            indicator.menu.addMenuItem(speedItem)
+            indicator.menu.addMenuItem(routeItem)
+            indicator.menu.addMenuItem(separator)
+            indicator.menu.addMenuItem(infoLabel)
+        }
 
         this._label = label
-        this._indicator = labelContainer
-        Panel._addToPanelBox('railSpeed', labelContainer, 0, (Panel as any)._centerBox)
+        this._indicator = indicator
+        this._speedItem = speedItem
+        this._routeItem = routeItem
+
+        Panel.addToStatusArea('railSpeed', indicator, 0, 'center')
+    }
+
+    enable() {
+        this.setupUI()
 
         this._LOGGER.info(`Enable ${this.metadata.uuid} (GLib v${GLib.MAJOR_VERSION}.${GLib.MINOR_VERSION}.${GLib.MICRO_VERSION})`);
 
