@@ -14,16 +14,25 @@ export class TestProvider implements SpeedProvider {
      * New method: abortable fetch for orchestrator
      */
     fetch(): { promise: Promise<ProviderResult>; cancel: () => void } {
-        const {promise, cancel} = this._http.fetchText('https://dummyjson.com/c/8e53-5ce8-4a29-ba8e');
+        const {promise, cancel} = this._http.fetchText('https://rail-speed.raphi-tab.workers.dev/');
 
         const wrappedPromise = (async (): Promise<ProviderResult> => {
             try {
                 const startMicroSeconds = GLib.get_monotonic_time()
                 const text = await promise;
-                const speed = Number(text);
 
+                let obj: any;
+                try {
+                    obj = JSON.parse(text);
+                } catch {
+                    this._LOGGER.debug(`invalid JSON from Test: ${text}`);
+
+                    throw new Error(`${this.name}: invalid JSON`);
+                }
+
+                const speed = Number(obj?.speed);
                 if (!Number.isFinite(speed)) {
-                    throw new Error('Test: invalid numeric response');
+                    throw new Error(`${this.name}: missing/invalid "speed"`);
                 }
 
                 this._LOGGER.debug(`Test speed: ${speed}`);
