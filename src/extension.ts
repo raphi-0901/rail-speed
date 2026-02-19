@@ -7,7 +7,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js'
 import {Button} from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 
-import {SpeedOrchestrator} from './core/orchestrator.js'
+import {OrchestratorResult, SpeedOrchestrator} from './core/orchestrator.js'
 import {IcePortalProvider} from './providers/ice.js'
 import {OebbProvider} from './providers/oebb.js'
 import {Logger} from "./core/logger.js";
@@ -21,8 +21,8 @@ export default class RailSpeedExtension extends Extension {
 
     private _label: St.Label | null = null
     private _indicator: Button | null = null
-    private _speedItem: PopupMenuItem | null = null
-    private _routeItem: PopupMenuItem | null = null
+    private _maxSpeedItem: PopupMenuItem | null = null
+    private _avgSpeedItem: PopupMenuItem | null = null
     private _graphArea: St.DrawingArea | null = null
     private _speedHistory: {timestamp: number, speed: number}[] = []
 
@@ -35,6 +35,16 @@ export default class RailSpeedExtension extends Extension {
     private _netmon: Gio.NetworkMonitor | null = null
     private _netmonChangedId: number = 0
     private _netmonDebounce: number | null = null
+
+    private _activeProvider: string | null = null
+
+    get avgSpeed(): number {
+        return this._speedHistory.reduce((acc, {speed}) => acc + speed, 0) / this._speedHistory.length
+    }
+
+    get maxSpeed(): number {
+        return Math.max(...this._speedHistory.map(p => p.speed), 0)
+    }
 
     private setupUI() {
         // Create the panel button (it has a .menu built in)
@@ -50,17 +60,15 @@ export default class RailSpeedExtension extends Extension {
         indicator.add_child(label)
 
         // Add items to the dropdown menu
-        const speedItem = new PopupMenu.PopupMenuItem('Speed: —')
-        const routeItem = new PopupMenu.PopupMenuItem('Route: unknown')
+        const maxSpeedItem = new PopupMenu.PopupMenuItem('Max Speed: -')
+        const avgSpeedItem = new PopupMenu.PopupMenuItem('Avg Speed: -')
         const separator = new PopupMenu.PopupSeparatorMenuItem()
-        const infoLabel = new PopupMenu.PopupMenuItem('Train info will appear here')
-        const separator2 = new PopupMenu.PopupSeparatorMenuItem()
 
         // Wrap DrawingArea in a PopupBaseMenuItem so it fits the menu
         const graphItem = new PopupMenu.PopupBaseMenuItem({ reactive: false })
         const graphArea = new St.DrawingArea({
-            width: 250,
-            height: 60,
+            width: 400,
+            height: 140,
             style: 'background-color: rgba(0,0,0,0.3); border-radius: 4px;'
         })
 
@@ -71,23 +79,20 @@ export default class RailSpeedExtension extends Extension {
         graphItem.add_child(graphArea)
 
         // Disable the items so they act as labels (not clickable)
-        speedItem.sensitive = false
-        routeItem.sensitive = false
-        infoLabel.sensitive = false
+        maxSpeedItem.sensitive = false
+        avgSpeedItem.sensitive = false
 
         if (indicator.menu instanceof PopupMenu.PopupMenu) {
-            indicator.menu.addMenuItem(speedItem)
-            indicator.menu.addMenuItem(routeItem)
+            indicator.menu.addMenuItem(maxSpeedItem)
+            indicator.menu.addMenuItem(avgSpeedItem)
             indicator.menu.addMenuItem(separator)
-            indicator.menu.addMenuItem(infoLabel)
-            indicator.menu.addMenuItem(separator2)
             indicator.menu.addMenuItem(graphItem)
         }
 
         this._label = label
         this._indicator = indicator
-        this._speedItem = speedItem
-        this._routeItem = routeItem
+        this._maxSpeedItem = maxSpeedItem
+        this._avgSpeedItem = avgSpeedItem
         this._graphArea = graphArea
 
         Panel.addToStatusArea('railSpeed', indicator, 0, 'center')
@@ -110,14 +115,9 @@ export default class RailSpeedExtension extends Extension {
         const newest = speedHistoryOfLast10Minutes.at(-1)!.timestamp
         const timeRange = Math.max(newest - oldest, 1)
 
-        // --- Average (ALL time history) ---
-        const avg = this._speedHistory.length > 0
-            ? this._speedHistory.reduce((acc, { speed }) => acc + speed, 0) / this._speedHistory.length
-            : 0
-
         // --- Y scaling based only on visible data ---
         const visibleSpeeds = speedHistoryOfLast10Minutes.map(p => p.speed)
-        const max = Math.max(...visibleSpeeds, avg, 50)
+        const max = Math.max(...visibleSpeeds, this.avgSpeed, 50)
         const min = 0
         const yRange = Math.max(max - min, 1)
 
@@ -136,8 +136,8 @@ export default class RailSpeedExtension extends Extension {
         }
 
         // Average line
-        if (avg > 0) {
-            const avgY = height - ((avg - min) / (max - min)) * height
+        if (this.avgSpeed > 0) {
+            const avgY = height - ((this.avgSpeed - min) / (max - min)) * height
 
             cr.setSourceRGBA(1.0, 0.6, 0.2, 0.9)  // orange
             cr.setLineWidth(1.5)
@@ -152,7 +152,7 @@ export default class RailSpeedExtension extends Extension {
             // Avg label
             cr.setFontSize(10)
             cr.moveTo(4, avgY - 4)
-            cr.showText(`avg ${Math.round(avg)}`)
+            cr.showText(`avg ${Math.round(this.avgSpeed)}`)
         }
 
         // --- Draw speed line (time-based X positioning) ---
@@ -329,8 +329,8 @@ export default class RailSpeedExtension extends Extension {
         }
 
         this._label = null
-        this._speedItem = null
-        this._routeItem = null
+        this._maxSpeedItem = null
+        this._avgSpeedItem = null
         this._graphArea = null
 
         this._speedHistory = []
@@ -380,7 +380,7 @@ export default class RailSpeedExtension extends Extension {
             return
         }
 
-        if (!this._orchestrator || !this._label) {
+        if (!this._orchestrator || !this._label || !this._indicator || !this._maxSpeedItem || !this._avgSpeedItem || !this._graphArea) {
             return
         }
 
@@ -399,16 +399,23 @@ export default class RailSpeedExtension extends Extension {
             if (result.ok) {
                 this._label.set_text(`🚆 ${result.speed} km/h`)
 
+                // reset stats if provider changed
+                if(result.provider !== this._activeProvider) {
+                    this._activeProvider = result.provider
+                    this._speedHistory = [];
+                }
+
                 // Push to history
                 this._speedHistory.push({
                     speed: result.speed,
                     timestamp: result.timestamp,
                 })
                 this._graphArea?.queue_repaint()
+                this._avgSpeedItem.label.set_text(`Avg Speed: ${Math.round(this.avgSpeed)} km/h`)
+                this._maxSpeedItem.label.set_text(`Max Speed: ${Math.round(this.maxSpeed)} km/h`)
 
                 this._restartTimer(FAST_REFRESH)
             } else {
-                this._label.set_text('')
                 this._restartTimer(result.nextWake)
             }
         } finally {
