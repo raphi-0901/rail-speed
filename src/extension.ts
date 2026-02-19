@@ -155,12 +155,31 @@ export default class RailSpeedExtension extends Extension {
         const resetItem = new PopupMenu.PopupBaseMenuItem({ reactive: false });
 
         const resetButton = new St.Button({
-            label: 'Reset statistics',
             style_class: 'button',
             x_expand: true,
             x_align: Clutter.ActorAlign.FILL,
             can_focus: true,
         });
+
+        const resetButtonBox = new St.BoxLayout({
+            vertical: false,
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const resetIcon = new St.Icon({
+            icon_name: 'view-refresh-symbolic',
+            icon_size: 14,
+            style: 'margin-right: 6px;',
+        });
+
+        const resetLabel = new St.Label({
+            text: 'Reset statistics',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        resetButtonBox.add_child(resetIcon);
+        resetButtonBox.add_child(resetLabel);
+        resetButton.set_child(resetButtonBox);
 
         resetButton.connect('clicked', () => {
             this._resetStats();
