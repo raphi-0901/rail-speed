@@ -111,7 +111,9 @@ export default class RailSpeedExtension extends Extension {
 
         // Disable the items so they act as labels (not clickable)
         maxSpeedItem.sensitive = false
+        maxSpeedItem.label.clutterText.set_use_markup(true)
         avgSpeedItem.sensitive = false
+        avgSpeedItem.label.clutterText.set_use_markup(true)
 
         // ---------- Provider footer ----------
         const providerItem = new PopupMenu.PopupBaseMenuItem({ reactive: false })
@@ -315,22 +317,6 @@ export default class RailSpeedExtension extends Extension {
             }
         })
 
-        // Current speed label (top-right inside plot)
-        // Current speed label (right side, vertically aligned with last datapoint)
-        const latest = speedHistoryOfLast10Minutes.at(-1)!.speed
-        cr.setSourceRGBA(1, 1, 1, 0.8)
-        cr.setFontSize(10)
-        const latestText = latest === null ? 'Offline' : `${latest}`
-        const latestTextExtents = cr.textExtents(latestText)
-        const latestLabelY = latest === null
-            ? plotY + 12
-            : Math.min(
-                Math.max(toPlotY(latest) + latestTextExtents.height / 2, plotY + latestTextExtents.height),
-                plotBottom - 2
-            )
-        cr.moveTo(plotX + plotW - latestTextExtents.width - 4, latestLabelY)
-        cr.showText(latestText)
-
         // ── End clip ─────────────────────────────────────────────────────────
         cr.restore()
 
@@ -388,6 +374,20 @@ export default class RailSpeedExtension extends Extension {
             cr.lineTo(x, plotBottom + 4)
             cr.stroke()
             cr.setSourceRGBA(1, 1, 1, 0.5)
+        }
+
+        // Current speed label — centered above the last data point
+        const lastPoint = speedHistoryOfLast10Minutes.at(-1)!
+        const latest = lastPoint.speed
+        cr.setSourceRGBA(1, 1, 1, 0.8)
+        cr.setFontSize(10)
+        if(latest === null) {
+            cr.showText('')
+        } else {
+            const text = `${latest}`
+            const textHeight = cr.textExtents(text).height
+            cr.moveTo(toPlotX(lastPoint.timestamp) + 4, toPlotY(latest) + textHeight / 2)
+            cr.showText(text)
         }
 
         cr.$dispose()
@@ -505,7 +505,6 @@ export default class RailSpeedExtension extends Extension {
     }
 
     async _update() {
-
         if (this._updating) {
             return
         }
@@ -516,9 +515,10 @@ export default class RailSpeedExtension extends Extension {
 
         if (this._netmon && !this._netmon.get_network_available()) {
             this._LOGGER.warn(`offline detected -> skip polling`)
-            const lastSpeed = this._speedHistory.at(-1)
+            const lastSpeed = this.lastActualHistoryItem
             if(lastSpeed) {
                 this._label.set_style("color: orange;");
+                this._bigSpeedLabel.set_text(`${lastSpeed} km/h - (Offline)`);
             }
 
             this._speedHistory.push({speed: null, timestamp: GLib.get_monotonic_time() / 1000 })
@@ -546,17 +546,25 @@ export default class RailSpeedExtension extends Extension {
                     speed: result.speed,
                     timestamp: result.timestamp,
                 })
-                this._graphArea?.queue_repaint()
-                this._avgSpeedItem.label.set_text(`Avg: ${Math.round(this.avgSpeed)} km/h`)
-                this._maxSpeedItem.label.set_text(`Max: ${Math.round(this.maxSpeed)} km/h`)
+                this._graphArea.queue_repaint()
+
+                this._avgSpeedItem.label.clutterText.set_use_markup(true)
+                this._avgSpeedItem.label.clutterText.set_markup(
+                    `<b>Avg</b>: ${Math.round(this.avgSpeed)} km/h`
+                )
+
+                this._maxSpeedItem.label.clutterText.set_use_markup(true)
+                this._maxSpeedItem.label.clutterText.set_markup(
+                    `<b>Max</b>: ${Math.round(this.maxSpeed)} km/h`
+                )
 
                 const latest = this._speedHistory.at(-1)?.speed;
                 if(!latest) {
-                    this._bigSpeedLabel?.set_text('Offline');
+                    this._bigSpeedLabel.set_text('Offline');
                 } else if (latest < 3) {
-                    this._bigSpeedLabel?.set_text('Stopped');
+                    this._bigSpeedLabel.set_text('Stopped');
                 } else {
-                    this._bigSpeedLabel?.set_text(`${latest} km/h`);
+                    this._bigSpeedLabel.set_text(`${latest} km/h`);
                 }
 
                 this._restartTimer(FAST_REFRESH)
