@@ -151,6 +151,23 @@ export default class RailSpeedExtension extends Extension {
         })
         providerItem.add_child(providerLabel)
 
+        // --- Reset button ---
+        const resetItem = new PopupMenu.PopupBaseMenuItem({ reactive: false });
+
+        const resetButton = new St.Button({
+            label: 'Reset statistics',
+            style_class: 'button',
+            x_expand: true,
+            x_align: Clutter.ActorAlign.FILL,
+            can_focus: true,
+        });
+
+        resetButton.connect('clicked', () => {
+            this._resetStats();
+        });
+
+        resetItem.add_child(resetButton);
+
         if (indicator.menu instanceof PopupMenu.PopupMenu) {
             indicator.menu.addMenuItem(headerItem)
             indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
@@ -159,6 +176,8 @@ export default class RailSpeedExtension extends Extension {
             indicator.menu.addMenuItem(graphItem)
             indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
             indicator.menu.addMenuItem(providerItem)
+            indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+            indicator.menu.addMenuItem(resetItem);
         }
 
         this._label = label
@@ -170,6 +189,13 @@ export default class RailSpeedExtension extends Extension {
 
         Panel.addToStatusArea('railSpeed', indicator, 0, 'center')
     }
+
+    private _resetStats() {
+        this._LOGGER.info('Resetting statistics');
+        this._speedHistory = [];
+        this._update();
+    }
+
 
     private _drawGraph(area: St.DrawingArea) {
         const cr = area.get_context()
@@ -586,7 +612,7 @@ export default class RailSpeedExtension extends Extension {
                 )
 
                 const latest = this._speedHistory.at(-1)?.speed;
-                if(!latest) {
+                if(!latest && latest !== 0) {
                     this._bigSpeedLabel.set_text('Offline');
                 } else if (latest < 3) {
                     this._bigSpeedLabel.set_text('Stopped');
