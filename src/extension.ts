@@ -97,9 +97,10 @@ export default class RailSpeedExtension extends Extension {
 
         // Wrap DrawingArea in a PopupBaseMenuItem so it fits the menu
         const graphItem = new PopupMenu.PopupBaseMenuItem({ reactive: false })
+        // Increased height to 160 to accommodate axis labels outside the plot area
         const graphArea = new St.DrawingArea({
             width: 400,
-            height: 140,
+            height: 160,
             style: 'background-color: rgba(0,0,0,0.3); border-radius: 4px;'
         })
 
@@ -144,7 +145,20 @@ export default class RailSpeedExtension extends Extension {
 
     private _drawGraph(area: St.DrawingArea) {
         const cr = area.get_context()
-        const [width, height] = area.get_surface_size()
+        const [totalWidth, totalHeight] = area.get_surface_size()
+
+        // ── Margins: labels live outside the plot area ──────────────────────
+        const leftMargin   = 36  // space for Y-axis labels (km/h values)
+        const rightMargin  = 8   // small breathing room on the right
+        const topMargin    = 8   // small breathing room on top
+        const bottomMargin = 18  // space for X-axis time labels
+
+        // Inner plot dimensions
+        const plotX = leftMargin
+        const plotY = topMargin
+        const plotW = totalWidth  - leftMargin - rightMargin
+        const plotH = totalHeight - topMargin  - bottomMargin
+
         const now = GLib.get_monotonic_time() / 1000
         const tenMinutesAgo = now - 10 * 60 * 1000
         const speedHistoryOfLast10Minutes = this._speedHistory.filter(item => item.timestamp > tenMinutesAgo)
@@ -165,37 +179,48 @@ export default class RailSpeedExtension extends Extension {
         const min = 0
         const yRange = Math.max(max - min, 1)
 
-        // Background
+        // Helper: map a speed value → Y pixel within plot area
+        const toPlotY = (speed: number) => plotY + plotH - ((speed - min) / yRange) * plotH
+        // Helper: map a timestamp → X pixel within plot area
+        const toPlotX = (ts: number) => plotX + ((ts - oldest) / timeRange) * plotW
+
+        // Background (full canvas, transparent)
         cr.setSourceRGBA(0, 0, 0, 0.0)
         cr.paint()
+
+        // ── Clip to plot area for all graph drawing ──────────────────────────
+        cr.save()
+        cr.rectangle(plotX, plotY, plotW, plotH)
+        cr.clip()
 
         // Grid lines (subtle)
         cr.setSourceRGBA(1, 1, 1, 0.1)
         cr.setLineWidth(1)
         for (let i = 1; i < 4; i++) {
-            const y = (height / 4) * i
-            cr.moveTo(0, y)
-            cr.lineTo(width, y)
+            const y = plotY + (plotH / 4) * i
+            cr.moveTo(plotX, y)
+            cr.lineTo(plotX + plotW, y)
             cr.stroke()
         }
 
         // Average line
         if (this.avgSpeed > 0) {
-            const avgY = height - ((this.avgSpeed - min) / (max - min)) * height
+            const avgY = toPlotY(this.avgSpeed)
 
             cr.setSourceRGBA(1.0, 0.6, 0.2, 0.9)  // orange
             cr.setLineWidth(1.5)
             cr.setDash([4.0, 4.0], 0)  // dashed
 
-            cr.moveTo(0, avgY)
-            cr.lineTo(width, avgY)
+            cr.moveTo(plotX, avgY)
+            cr.lineTo(plotX + plotW, avgY)
             cr.stroke()
 
             cr.setDash([], 0) // reset dash
 
-            // Avg label
-            cr.setFontSize(10)
-            cr.moveTo(4, avgY - 4)
+            // Avg label inside plot (small, near the line)
+            cr.setSourceRGBA(1.0, 0.6, 0.2, 0.85)
+            cr.setFontSize(9)
+            cr.moveTo(plotX + 4, avgY - 3)
             cr.showText(`avg ${Math.round(this.avgSpeed)}`)
         }
 
@@ -206,14 +231,14 @@ export default class RailSpeedExtension extends Extension {
         let penDown = false
 
         speedHistoryOfLast10Minutes.forEach((point) => {
-            const x = ((point.timestamp - oldest) / timeRange) * width
+            const x = toPlotX(point.timestamp)
 
             if (point.speed === null) {
                 penDown = false
                 return
             }
 
-            const y = height - ((point.speed - min) / yRange) * height
+            const y = toPlotY(point.speed)
 
             if (!penDown) {
                 cr.moveTo(x, y)
@@ -230,14 +255,15 @@ export default class RailSpeedExtension extends Extension {
 
         let segmentStart: { x: number; y: number } | null = null
         let segmentLastX = 0
+        const plotBottom = plotY + plotH
 
         for (const point of speedHistoryOfLast10Minutes) {
-            const x = ((point.timestamp - oldest) / timeRange) * width
+            const x = toPlotX(point.timestamp)
 
             if (point.speed === null) {
                 if (segmentStart !== null) {
-                    cr.lineTo(segmentLastX, height)
-                    cr.lineTo(segmentStart.x, height)
+                    cr.lineTo(segmentLastX, plotBottom)
+                    cr.lineTo(segmentStart.x, plotBottom)
                     cr.closePath()
                     cr.fill()
                     segmentStart = null
@@ -245,7 +271,7 @@ export default class RailSpeedExtension extends Extension {
                 continue
             }
 
-            const y = height - ((point.speed - min) / yRange) * height
+            const y = toPlotY(point.speed)
 
             if (segmentStart === null) {
                 cr.newPath()
@@ -260,72 +286,102 @@ export default class RailSpeedExtension extends Extension {
 
         // Close any trailing open segment
         if (segmentStart !== null) {
-            cr.lineTo(segmentLastX, height)
-            cr.lineTo(segmentStart.x, height)
+            cr.lineTo(segmentLastX, plotBottom)
+            cr.lineTo(segmentStart.x, plotBottom)
             cr.closePath()
             cr.fill()
         }
 
         // --- Datapoint dots ---
         speedHistoryOfLast10Minutes.forEach(point => {
-            const x = ((point.timestamp - oldest) / timeRange) * width
+            const x = toPlotX(point.timestamp)
 
             if (point.speed === null) {
                 // Subtle vertical gap marker
                 cr.setSourceRGBA(1.0, 0.3, 0.3, 0.3)
                 cr.setLineWidth(1)
-                cr.moveTo(x, 0)
-                cr.lineTo(x, height)
+                cr.moveTo(x, plotY)
+                cr.lineTo(x, plotBottom)
                 cr.stroke()
             } else {
-                const y = height - ((point.speed - min) / yRange) * height
+                const y = toPlotY(point.speed)
                 cr.setSourceRGBA(0.2, 0.8, 1.0, 1.0)
                 cr.arc(x, y, 2.5, 0, 2 * Math.PI)
                 cr.fill()
             }
         })
 
-        // Current speed label
+        // Current speed label (top-right inside plot)
+        // Current speed label (right side, vertically aligned with last datapoint)
         const latest = speedHistoryOfLast10Minutes.at(-1)!.speed
         cr.setSourceRGBA(1, 1, 1, 0.8)
         cr.setFontSize(10)
         const latestText = latest === null ? 'Offline' : `${latest}`
-        cr.moveTo(width - cr.textExtents(latestText).width - 4, 14)
+        const latestTextExtents = cr.textExtents(latestText)
+        const latestLabelY = latest === null
+            ? plotY + 12
+            : Math.min(
+                Math.max(toPlotY(latest) + latestTextExtents.height / 2, plotY + latestTextExtents.height),
+                plotBottom - 2
+            )
+        cr.moveTo(plotX + plotW - latestTextExtents.width - 4, latestLabelY)
         cr.showText(latestText)
 
-        // Scale labels
-        cr.moveTo(4, height - 4)
-        cr.showText(`0`)
-        cr.moveTo(4, 14)
-        cr.showText(`${Math.round(max)}`)
+        // ── End clip ─────────────────────────────────────────────────────────
+        cr.restore()
 
-        // X-axis time labels
+        // ── Y-axis labels (outside plot, in left margin) ─────────────────────
+        cr.setSourceRGBA(1, 1, 1, 0.6)
+        cr.setFontSize(9)
+
+        // Max label (top)
+        const maxText = `${Math.round(max)}`
+        const maxExtents = cr.textExtents(maxText)
+        cr.moveTo(plotX - maxExtents.width - 4, plotY + maxExtents.height)
+        cr.showText(maxText)
+
+        // Zero label (bottom)
+        const zeroExtents = cr.textExtents('0')
+        cr.moveTo(plotX - zeroExtents.width - 4, plotBottom)
+        cr.showText('0')
+
+        // Optional mid-point Y label
+        const midVal = Math.round(max / 2)
+        const midText = `${midVal}`
+        const midExtents = cr.textExtents(midText)
+        const midY = toPlotY(midVal)
+        cr.moveTo(plotX - midExtents.width - 4, midY + midExtents.height / 2)
+        cr.showText(midText)
+
+        // ── X-axis time labels (outside plot, in bottom margin) ──────────────
         cr.setSourceRGBA(1, 1, 1, 0.5)
         cr.setFontSize(9)
 
-        const labelCount = 5 // number of time markers
+        const labelCount = 5
         for (let i = 0; i <= labelCount; i++) {
             const fraction = i / labelCount
-            const x = fraction * width
+            const x = plotX + fraction * plotW
             const timestampAtX = oldest + fraction * timeRange
             const secondsAgo = Math.round((now - timestampAtX) / 1000)
 
-            const label = secondsAgo === 0
-                ? 'now'
-                : `-${secondsAgo}s`
+            const label = secondsAgo === 0 ? 'now' : `-${secondsAgo}s`
+            const textExtents = cr.textExtents(label)
 
-            const textWidth = cr.textExtents(label).width
             // clamp so first and last labels don't overflow
-            const clampedX = Math.min(Math.max(x - textWidth / 2, 0), width - textWidth)
+            const clampedX = Math.min(
+                Math.max(x - textExtents.width / 2, plotX),
+                plotX + plotW - textExtents.width
+            )
 
-            cr.moveTo(clampedX, height - 4)
+            // Label goes below the plot area
+            cr.moveTo(clampedX, plotBottom + 13)
             cr.showText(label)
 
-            // optional tick mark
+            // Tick mark at the bottom edge of the plot
             cr.setSourceRGBA(1, 1, 1, 0.2)
             cr.setLineWidth(1)
-            cr.moveTo(x, height - 16)
-            cr.lineTo(x, height - 10)
+            cr.moveTo(x, plotBottom)
+            cr.lineTo(x, plotBottom + 4)
             cr.stroke()
             cr.setSourceRGBA(1, 1, 1, 0.5)
         }
@@ -338,28 +394,16 @@ export default class RailSpeedExtension extends Extension {
 
         this._LOGGER.info(`Enable ${this.metadata.uuid} (GLib v${GLib.MAJOR_VERSION}.${GLib.MINOR_VERSION}.${GLib.MICRO_VERSION})`);
 
-        // -----------------------
-        // Platform objects
-        // -----------------------
         this._timer = null
 
-        // -----------------------
-        // Providers
-        // -----------------------
         const providers = [
             new OebbProvider(),
             new IcePortalProvider(),
             new TestProvider(),
         ]
 
-        // -----------------------
-        // Core orchestrator
-        // -----------------------
         this._orchestrator = new SpeedOrchestrator(providers)
 
-        // -----------------------
-        // Network monitor
-        // -----------------------
         this._netmon = Gio.NetworkMonitor.get_default()
 
         this._netmonChangedId = this._netmon.connect(
@@ -367,13 +411,11 @@ export default class RailSpeedExtension extends Extension {
             (_mon, available) => {
                 this._LOGGER.info(`Network changed. Available: ${available}`)
 
-                // cancel current debounce
                 if (this._netmonDebounce !== null) {
                     GLib.source_remove(this._netmonDebounce)
                     this._netmonDebounce = null
                 }
 
-                // wait 1s for network to stabilize before resetting backoff
                 this._netmonDebounce = GLib.timeout_add_seconds(
                     GLib.PRIORITY_DEFAULT,
                     1,
@@ -392,25 +434,16 @@ export default class RailSpeedExtension extends Extension {
             }
         )
 
-        // -----------------------
-        // Timer
-        // -----------------------
         this._currentInterval = FAST_REFRESH
         this._restartTimer(FAST_REFRESH)
     }
 
     disable() {
-        // -----------------------
-        // Stop timer
-        // -----------------------
         if (this._timer) {
             GLib.source_remove(this._timer)
             this._timer = null
         }
 
-        // -----------------------
-        // Disconnect network monitor
-        // -----------------------
         if (this._netmonChangedId && this._netmon) {
             this._netmon.disconnect(this._netmonChangedId)
             this._netmonChangedId = 0
@@ -418,9 +451,6 @@ export default class RailSpeedExtension extends Extension {
 
         this._netmon = null
 
-        // -----------------------
-        // Destroy UI
-        // -----------------------
         if (this._indicator) {
             this._indicator.destroy()
             this._indicator = null
@@ -433,9 +463,6 @@ export default class RailSpeedExtension extends Extension {
 
         this._speedHistory = []
 
-        // -----------------------
-        // Drop core
-        // -----------------------
         if (this._orchestrator) {
             this._orchestrator.destroy()
             this._orchestrator = null
@@ -483,7 +510,6 @@ export default class RailSpeedExtension extends Extension {
             return
         }
 
-        // Avoid pointless polling if offline
         if (this._netmon && !this._netmon.get_network_available()) {
             this._LOGGER.warn(`offline detected -> skip polling`)
             const lastSpeed = this._speedHistory.at(-1)
@@ -491,7 +517,6 @@ export default class RailSpeedExtension extends Extension {
                 this._label.set_style("color: orange;");
             }
 
-            // add a null point to the graph to indicate offline
             this._speedHistory.push({speed: null, timestamp: GLib.get_monotonic_time() / 1000 })
             this._graphArea?.queue_repaint()
             this._updateProviderLabel()
@@ -508,13 +533,11 @@ export default class RailSpeedExtension extends Extension {
                 this._label.set_text(`🚆 ${result.speed} km/h`)
                 this._providerLabel.set_text(`${result.provider} · Live`)
 
-                // reset stats if provider changed
                 if(result.provider !== this._activeProvider) {
                     this._activeProvider = result.provider
                     this._speedHistory = [];
                 }
 
-                // Push to history
                 this._speedHistory.push({
                     speed: result.speed,
                     timestamp: result.timestamp,
