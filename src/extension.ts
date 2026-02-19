@@ -23,6 +23,8 @@ export default class RailSpeedExtension extends Extension {
     private _indicator: Button | null = null
     private _speedItem: PopupMenuItem | null = null
     private _routeItem: PopupMenuItem | null = null
+    private _graphArea: St.DrawingArea | null = null
+    private _speedHistory: number[] = []
 
     private _timer: number | null = null
     private _currentInterval: number = 0
@@ -52,6 +54,21 @@ export default class RailSpeedExtension extends Extension {
         const routeItem = new PopupMenu.PopupMenuItem('Route: unknown')
         const separator = new PopupMenu.PopupSeparatorMenuItem()
         const infoLabel = new PopupMenu.PopupMenuItem('Train info will appear here')
+        const separator2 = new PopupMenu.PopupSeparatorMenuItem()
+
+        // Wrap DrawingArea in a PopupBaseMenuItem so it fits the menu
+        const graphItem = new PopupMenu.PopupBaseMenuItem({ reactive: false })
+        const graphArea = new St.DrawingArea({
+            width: 250,
+            height: 60,
+            style: 'background-color: rgba(0,0,0,0.3); border-radius: 4px;'
+        })
+
+        graphArea.connect('repaint', (area) => {
+            this._drawGraph(area)
+        })
+
+        graphItem.add_child(graphArea)
 
         // Disable the items so they act as labels (not clickable)
         speedItem.sensitive = false
@@ -63,14 +80,96 @@ export default class RailSpeedExtension extends Extension {
             indicator.menu.addMenuItem(routeItem)
             indicator.menu.addMenuItem(separator)
             indicator.menu.addMenuItem(infoLabel)
+            indicator.menu.addMenuItem(separator2)
+            indicator.menu.addMenuItem(graphItem)
         }
 
         this._label = label
         this._indicator = indicator
         this._speedItem = speedItem
         this._routeItem = routeItem
+        this._graphArea = graphArea
 
         Panel.addToStatusArea('railSpeed', indicator, 0, 'center')
+    }
+
+    private _drawGraph(area: St.DrawingArea) {
+        const cr = area.get_context()
+        const [width, height] = area.get_surface_size()
+        const history = this._speedHistory
+
+        if (!cr || history.length < 2) {
+            cr?.$dispose()
+            return
+        }
+
+        const max = Math.max(...history, 50)  // at least 50 km/h scale
+        const min = 0
+
+        // Background
+        cr.setSourceRGBA(0, 0, 0, 0.0)
+        cr.paint()
+
+        // Grid lines (subtle)
+        cr.setSourceRGBA(1, 1, 1, 0.1)
+        cr.setLineWidth(1)
+        for (let i = 1; i < 4; i++) {
+            const y = (height / 4) * i
+            cr.moveTo(0, y)
+            cr.lineTo(width, y)
+            cr.stroke()
+        }
+
+        // Speed line
+        cr.setSourceRGBA(0.2, 0.8, 1.0, 0.9)  // cyan-ish
+        cr.setLineWidth(2)
+
+        const xStep = width / (history.length - 1)
+
+        history.forEach((speed, i) => {
+            const x = i * xStep
+            const y = height - ((speed - min) / (max - min)) * height
+
+            if (i === 0) {
+                cr.moveTo(x, y)
+            }
+            else {
+                cr.lineTo(x, y)
+            }
+        })
+        cr.stroke()
+
+        // Fill under the line
+        cr.setSourceRGBA(0.2, 0.8, 1.0, 0.15)
+        history.forEach((speed, i) => {
+            const x = i * xStep
+            const y = height - ((speed - min) / (max - min)) * height
+            if (i === 0) {
+                cr.moveTo(x, y)
+            }
+            else {
+                cr.lineTo(x, y)
+            }
+        })
+        cr.lineTo((history.length - 1) * xStep, height)
+        cr.lineTo(0, height)
+        cr.closePath()
+        cr.fill()
+
+        // Current speed label
+        const latest = history[history.length - 1]
+        cr.setSourceRGBA(1, 1, 1, 0.8)
+        cr.setFontSize(10)
+        cr.moveTo(width - cr.textExtents(`${latest}`).width - 4, 14)
+        cr.showText(`${latest}`)
+
+        // Max label
+        cr.moveTo(4, height - 4)
+        cr.showText(`0`)
+        cr.moveTo(4, 14)
+        cr.showText(`${Math.round(max)}`)
+
+        cr.$dispose()
     }
 
     enable() {
@@ -167,6 +266,11 @@ export default class RailSpeedExtension extends Extension {
         }
 
         this._label = null
+        this._speedItem = null
+        this._routeItem = null
+        this._graphArea = null
+
+        this._speedHistory = []
 
         // -----------------------
         // Drop core
@@ -231,6 +335,14 @@ export default class RailSpeedExtension extends Extension {
             const result = await this._orchestrator.tryOnce()
             if (result.ok) {
                 this._label.set_text(`🚆 ${result.speed} km/h`)
+
+                // Push to history
+                this._speedHistory.push(result.speed)
+                if (this._speedHistory.length > 60) {
+                    this._speedHistory.shift()
+                }
+                this._graphArea?.queue_repaint()
+
                 this._restartTimer(FAST_REFRESH)
             } else {
                 this._label.set_text('')
