@@ -166,6 +166,8 @@ export default class RailSpeedExtension extends Extension {
             x_align: Clutter.ActorAlign.CENTER,
         });
 
+        // /usr/share/icons/Yaru/scalable/status/speedometer-symbolic.svg
+
         const resetIcon = new St.Icon({
             icon_name: 'view-refresh-symbolic',
             icon_size: 14,
@@ -644,7 +646,7 @@ export default class RailSpeedExtension extends Extension {
                 )
 
                 const latest = this._speedHistory.at(-1)?.speed;
-                if(!latest && latest !== 0) {
+                if (latest === null || latest === undefined) {
                     this._bigSpeedLabel.set_text('Offline');
                 } else if (latest < 3) {
                     this._bigSpeedLabel.set_text('Stopped');
