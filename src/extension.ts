@@ -12,13 +12,13 @@ import {IcePortalProvider} from './providers/ice.js'
 import {OebbProvider} from './providers/oebb.js'
 import {Logger} from "./core/logger.js";
 import {TestProvider} from "./providers/test.js";
-import {PopupMenuItem} from "@girs/gnome-shell/ui/popupMenu";
 import {timeAgo} from "./core/utils/timeAgo.js";
 
 const FAST_REFRESH = 1
 
 export default class RailSpeedExtension extends Extension {
     private _updating = false
+    private GRAPH_WINDOW_SIZE = 10
 
     private _label: St.Label | null = null
     private _indicator: Button | null = null
@@ -42,12 +42,19 @@ export default class RailSpeedExtension extends Extension {
 
     private _activeProvider: string | null = null
 
+    private _globalCount = 0
+    private _globalSum = 0
+    private _globalMax = 0
+
     get avgSpeed(): number {
-        const speeds = this._speedHistory.map(p => p.speed).filter((s) => s !== null);
-        if (speeds.length === 0) {
-            return 0;
+        if (this._globalCount === 0) {
+            return 0
         }
-        return speeds.reduce((acc, s) => acc + s, 0) / speeds.length;
+        return this._globalSum / this._globalCount
+    }
+
+    get maxSpeed(): number {
+        return this._globalMax
     }
 
     get lastActualHistoryItem() {
@@ -61,11 +68,6 @@ export default class RailSpeedExtension extends Extension {
             timestamp: number
             speed: number
         }
-    }
-
-    get maxSpeed(): number {
-        const speeds = this._speedHistory.map(p => p.speed).filter((s)=> s !== null);
-        return Math.max(...speeds, 0);
     }
 
     private setupUI() {
@@ -214,9 +216,11 @@ export default class RailSpeedExtension extends Extension {
     private _resetStats() {
         this._LOGGER.info('Resetting statistics');
         this._speedHistory = [];
-        this._update();
+        this._globalSum = 0;
+        this._globalCount = 0;
+        this._globalMax = 0;
+        this._updateUI();
     }
-
 
     private _drawGraph(area: St.DrawingArea) {
         const cr = area.get_context()
@@ -240,10 +244,8 @@ export default class RailSpeedExtension extends Extension {
         cr.fill()
 
         const now = GLib.get_monotonic_time() / 1000
-        const tenMinutesAgo = now - 10 * 60 * 1000
-        const speedHistoryOfLast10Minutes = this._speedHistory.filter(item => item.timestamp > tenMinutesAgo)
 
-        if (!cr || speedHistoryOfLast10Minutes.length < 2) {
+        if (!cr || this._speedHistory.length < 2) {
             // Draw the background so it doesn't look broken
             cr.setSourceRGBA(0, 0, 0, 0.3)
             cr.rectangle(plotX, plotY, plotW, plotH)
@@ -262,12 +264,12 @@ export default class RailSpeedExtension extends Extension {
         }
 
         // --- Time range (relative positioning) ---
-        const oldest = speedHistoryOfLast10Minutes.at(0)!.timestamp
-        const newest = speedHistoryOfLast10Minutes.at(-1)!.timestamp
+        const oldest = this._speedHistory.at(0)!.timestamp
+        const newest = this._speedHistory.at(-1)!.timestamp
         const timeRange = Math.max(newest - oldest, 1)
 
         // --- Y scaling based only on visible data ---
-        const visibleSpeeds = speedHistoryOfLast10Minutes.map(p => p.speed).filter(s => s !== null)
+        const visibleSpeeds = this._speedHistory.map(p => p.speed).filter(s => s !== null)
         const max = Math.max(...visibleSpeeds, this.avgSpeed, 50)
         const min = 0
         const yRange = Math.max(max - min, 1)
@@ -323,7 +325,7 @@ export default class RailSpeedExtension extends Extension {
 
         let penDown = false
 
-        speedHistoryOfLast10Minutes.forEach((point) => {
+        this._speedHistory.forEach((point) => {
             const x = toPlotX(point.timestamp)
 
             if (point.speed === null) {
@@ -350,7 +352,7 @@ export default class RailSpeedExtension extends Extension {
         let segmentLastX = 0
         const plotBottom = plotY + plotH
 
-        for (const point of speedHistoryOfLast10Minutes) {
+        for (const point of this._speedHistory) {
             const x = toPlotX(point.timestamp)
 
             if (point.speed === null) {
@@ -386,7 +388,7 @@ export default class RailSpeedExtension extends Extension {
         }
 
         // --- Datapoint dots ---
-        speedHistoryOfLast10Minutes.forEach(point => {
+        this._speedHistory.forEach(point => {
             const x = toPlotX(point.timestamp)
 
             if (point.speed === null) {
@@ -464,7 +466,7 @@ export default class RailSpeedExtension extends Extension {
         }
 
         // Current speed label — centered above the last data point
-        const lastPoint = speedHistoryOfLast10Minutes.at(-1)!
+        const lastPoint = this._speedHistory.at(-1)!
         const latest = lastPoint.speed
         cr.setSourceRGBA(1, 1, 1, 0.8)
         cr.setFontSize(10)
@@ -605,12 +607,22 @@ export default class RailSpeedExtension extends Extension {
             const lastSpeed = this.lastActualHistoryItem
             if(lastSpeed) {
                 this._label.set_style("color: orange;");
-                this._bigSpeedLabel.set_text(`${lastSpeed} km/h - (Offline)`);
+                this._bigSpeedLabel.set_text(`${lastSpeed.speed} km/h - (Offline)`);
             }
 
             this._speedHistory.push({speed: null, timestamp: GLib.get_monotonic_time() / 1000 })
             this._graphArea?.queue_repaint()
-            this._updateProviderLabel()
+            this._updateUI()
+
+            const oneMinuteAgo = GLib.get_monotonic_time() / 1000 - 60 * 1 * 1000
+
+            while (
+                this._speedHistory.length > 0 &&
+                this._speedHistory[0].timestamp < oneMinuteAgo
+                ) {
+                this._speedHistory.shift()
+            }
+
             this._restartTimer(FAST_REFRESH)
 
             return
@@ -621,42 +633,32 @@ export default class RailSpeedExtension extends Extension {
         try {
             const result = await this._orchestrator.tryOnce()
             if (result.ok) {
-                this._label.set_text(`🚆 ${result.speed} km/h`)
-                this._providerLabel.set_text(`${result.provider} · Live`)
-
                 if(result.provider !== this._activeProvider) {
                     this._activeProvider = result.provider
                     this._speedHistory = [];
                 }
 
+                this._globalCount++
+                this._globalSum += result.speed
+                this._globalMax = Math.max(this.maxSpeed, result.speed)
                 this._speedHistory.push({
                     speed: result.speed,
                     timestamp: result.timestamp,
                 })
-                this._graphArea.queue_repaint()
 
-                this._avgSpeedLabel.clutterText.set_use_markup(true)
-                this._avgSpeedLabel.clutterText.set_markup(
-                    `<b>Avg</b>: ${Math.round(this.avgSpeed)} km/h`
-                )
+                const xMinutesAgo = GLib.get_monotonic_time() / 1000 - 60 * this.GRAPH_WINDOW_SIZE * 1000
 
-                this._maxSpeedLabel.clutterText.set_use_markup(true)
-                this._maxSpeedLabel.clutterText.set_markup(
-                    `<b>Max</b>: ${Math.round(this.maxSpeed)} km/h`
-                )
-
-                const latest = this._speedHistory.at(-1)?.speed;
-                if (latest === null || latest === undefined) {
-                    this._bigSpeedLabel.set_text('Offline');
-                } else if (latest < 3) {
-                    this._bigSpeedLabel.set_text('Stopped');
-                } else {
-                    this._bigSpeedLabel.set_text(`${latest} km/h`);
+                while (
+                    this._speedHistory.length > 0 &&
+                    this._speedHistory[0].timestamp < xMinutesAgo
+                    ) {
+                    this._speedHistory.shift()
                 }
 
+                this._updateUI()
                 this._restartTimer(FAST_REFRESH)
             } else {
-                this._updateProviderLabel()
+                this._updateUI()
                 this._restartTimer(result.nextWake)
             }
         } finally {
@@ -664,19 +666,55 @@ export default class RailSpeedExtension extends Extension {
         }
     }
 
-    private _updateProviderLabel() {
-        if(!this._providerLabel) {
-            return
+    private _updateUI() {
+        if(this._label) {
+            const latest = this._speedHistory.at(-1)?.speed;
+            if(latest === null || latest === undefined) {
+                this._label.set_text('Offline');
+            } else {
+                this._label.set_text(`🚆 ${latest} km/h`);
+            }
         }
 
-        const lastUpdate = this.lastActualHistoryItem
-        const provider = this._activeProvider ?? "No provider"
-
-        if(lastUpdate) {
-            this._providerLabel.set_text(`${provider} · ${timeAgo(lastUpdate.timestamp)}`)
+        if(this._graphArea) {
+            this._graphArea.queue_repaint()
         }
-        else {
-            this._providerLabel.set_text(`${provider} · Not synchronized yet`)
+
+        if(this._avgSpeedLabel) {
+            this._avgSpeedLabel.clutterText.set_use_markup(true)
+            this._avgSpeedLabel.clutterText.set_markup(
+                `<b>Avg</b>: ${Math.round(this.avgSpeed)} km/h`
+            )
+        }
+
+        if(this._maxSpeedLabel) {
+            this._maxSpeedLabel.clutterText.set_use_markup(true)
+            this._maxSpeedLabel.clutterText.set_markup(
+                `<b>Max</b>: ${Math.round(this.maxSpeed)} km/h`
+            )
+        }
+
+        if(this._bigSpeedLabel) {
+            const latest = this._speedHistory.at(-1)?.speed;
+            if (latest === null || latest === undefined) {
+                this._bigSpeedLabel.set_text('Offline');
+            } else if (latest < 3) {
+                this._bigSpeedLabel.set_text('Stopped');
+            } else {
+                this._bigSpeedLabel.set_text(`${latest} km/h`);
+            }
+        }
+
+        if(this._providerLabel) {
+            const lastUpdate = this.lastActualHistoryItem
+            const provider = this._activeProvider ?? "No provider"
+
+            if(lastUpdate) {
+                this._providerLabel.set_text(`${provider} · ${timeAgo(lastUpdate.timestamp)}`)
+            }
+            else {
+                this._providerLabel.set_text(`${provider} · Not synchronized yet`)
+            }
         }
     }
 }
