@@ -223,7 +223,20 @@ export default class RailSpeedExtension extends Extension {
         const speedHistoryOfLast10Minutes = this._speedHistory.filter(item => item.timestamp > tenMinutesAgo)
 
         if (!cr || speedHistoryOfLast10Minutes.length < 2) {
-            cr?.$dispose()
+            // Draw the background so it doesn't look broken
+            cr.setSourceRGBA(0, 0, 0, 0.3)
+            cr.rectangle(plotX, plotY, plotW, plotH)
+            cr.fill()
+
+            // Centered "Waiting for data…" message
+            cr.setSourceRGBA(1, 1, 1, 0.4)
+            cr.setFontSize(12)
+            const msg = 'Waiting for data\u2026'
+            const ext = cr.textExtents(msg)
+            cr.moveTo(plotX + (plotW - ext.width) / 2, plotY + (plotH + ext.height) / 2)
+            cr.showText(msg)
+
+            cr.$dispose()
             return
         }
 
