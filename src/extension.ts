@@ -7,7 +7,7 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js'
 import {Button} from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 
-import {OrchestratorResult, SpeedOrchestrator} from './core/orchestrator.js'
+import {SpeedOrchestrator} from './core/orchestrator.js'
 import {IcePortalProvider} from './providers/ice.js'
 import {OebbProvider} from './providers/oebb.js'
 import {Logger} from "./core/logger.js";
@@ -28,7 +28,7 @@ export default class RailSpeedExtension extends Extension {
     private _providerLabel: St.Label | null = null
 
     private _graphArea: St.DrawingArea | null = null
-    private _speedHistory: {timestamp: number, speed: number}[] = []
+    private _speedHistory: {timestamp: number, speed: number | null}[] = []
 
     private _timer: number | null = null
     private _currentInterval: number = 0
@@ -43,11 +43,29 @@ export default class RailSpeedExtension extends Extension {
     private _activeProvider: string | null = null
 
     get avgSpeed(): number {
-        return this._speedHistory.reduce((acc, {speed}) => acc + speed, 0) / this._speedHistory.length
+        const speeds = this._speedHistory.map(p => p.speed).filter((s) => s !== null);
+        if (speeds.length === 0) {
+            return 0;
+        }
+        return speeds.reduce((acc, s) => acc + s, 0) / speeds.length;
+    }
+
+    get lastActualHistoryItem() {
+        const item = this._speedHistory.filter(p => p.speed !== null).at(-1)
+
+        if(!item) {
+            return null;
+        }
+
+        return item as {
+            timestamp: number
+            speed: number
+        }
     }
 
     get maxSpeed(): number {
-        return Math.max(...this._speedHistory.map(p => p.speed), 0)
+        const speeds = this._speedHistory.map(p => p.speed).filter((s)=> s !== null);
+        return Math.max(...speeds, 0);
     }
 
     private setupUI() {
@@ -446,11 +464,15 @@ export default class RailSpeedExtension extends Extension {
                 this._avgSpeedItem.label.set_text(`Avg: ${Math.round(this.avgSpeed)} km/h`)
                 this._maxSpeedItem.label.set_text(`Max: ${Math.round(this.maxSpeed)} km/h`)
 
-                if (result.speed < 3) {
-                    this._bigSpeedLabel.set_text('Stopped')
+                const latest = this._speedHistory.at(-1)?.speed;
+                if(!latest) {
+                    this._bigSpeedLabel?.set_text('Offline');
+                } else if (latest < 3) {
+                    this._bigSpeedLabel?.set_text('Stopped');
                 } else {
-                    this._bigSpeedLabel.set_text(`${result.speed} km/h`)
+                    this._bigSpeedLabel?.set_text(`${latest} km/h`);
                 }
+
                 this._restartTimer(FAST_REFRESH)
             } else {
                 this._updateProviderLabel()
@@ -466,11 +488,11 @@ export default class RailSpeedExtension extends Extension {
             return
         }
 
-        const lastUpdate = this._speedHistory.at(-1)?.timestamp
+        const lastUpdate = this.lastActualHistoryItem
         const provider = this._activeProvider ?? "No provider"
 
         if(lastUpdate) {
-            this._providerLabel.set_text(`${provider} · ${timeAgo(lastUpdate)}`)
+            this._providerLabel.set_text(`${provider} · ${timeAgo(lastUpdate.timestamp)}`)
         }
         else {
             this._providerLabel.set_text(`${provider} · Not synchronized yet`)
