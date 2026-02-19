@@ -299,6 +299,37 @@ export default class RailSpeedExtension extends Extension {
         cr.moveTo(4, 14)
         cr.showText(`${Math.round(max)}`)
 
+        // X-axis time labels
+        cr.setSourceRGBA(1, 1, 1, 0.5)
+        cr.setFontSize(9)
+
+        const labelCount = 5 // number of time markers
+        for (let i = 0; i <= labelCount; i++) {
+            const fraction = i / labelCount
+            const x = fraction * width
+            const timestampAtX = oldest + fraction * timeRange
+            const secondsAgo = Math.round((now - timestampAtX) / 1000)
+
+            const label = secondsAgo === 0
+                ? 'now'
+                : `-${secondsAgo}s`
+
+            const textWidth = cr.textExtents(label).width
+            // clamp so first and last labels don't overflow
+            const clampedX = Math.min(Math.max(x - textWidth / 2, 0), width - textWidth)
+
+            cr.moveTo(clampedX, height - 4)
+            cr.showText(label)
+
+            // optional tick mark
+            cr.setSourceRGBA(1, 1, 1, 0.2)
+            cr.setLineWidth(1)
+            cr.moveTo(x, height - 16)
+            cr.lineTo(x, height - 10)
+            cr.stroke()
+            cr.setSourceRGBA(1, 1, 1, 0.5)
+        }
+
         cr.$dispose()
     }
 
