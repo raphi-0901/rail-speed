@@ -413,13 +413,17 @@ export default class RailSpeedExtension extends Extension {
         // Avoid pointless polling if offline
         if (this._netmon && !this._netmon.get_network_available()) {
             this._LOGGER.warn(`offline detected -> skip polling`)
-            this._label.set_text('')
+            const lastSpeed = this._speedHistory.at(-1)
+            if(lastSpeed) {
+                this._label.set_style("color: orange;");
+            }
             this._updateProviderLabel()
-            this._restartTimer(5)
+            this._restartTimer(1)
 
             return
         }
 
+        this._label.set_style("color: inherit;");
         this._updating = true
         try {
             const result = await this._orchestrator.tryOnce()
