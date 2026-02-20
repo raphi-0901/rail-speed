@@ -1,10 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-    <schema id="org.gnome.shell.extensions.railspeed" path="/org/gnome/shell/extensions/railspeed/">
+    <schema id="org.gnome.shell.extensions.rail-speed" path="/org/gnome/shell/extensions/rail-speed/">
         <key name="graph-window-size" type="i">
             <default>10</default>
             <summary>Number of minutes to display in the graph</summary>
             <description>Controls how many minutes of speed history are visible in the graph.</description>
+        </key>
+        <key name="show-indicator" type="b">
+            <default>true</default>
         </key>
     </schema>
 </schemalist>

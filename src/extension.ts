@@ -27,6 +27,8 @@ export default class RailSpeedExtension extends Extension {
     private _bigSpeedLabel: St.Label | null = null
     private _providerLabel: St.Label | null = null
 
+    private _settings: Gio.Settings | null = null
+
     private _graphArea: St.DrawingArea | null = null
     private _speedHistory: {timestamp: number, speed: number | null}[] = []
 
@@ -201,6 +203,20 @@ export default class RailSpeedExtension extends Extension {
             indicator.menu.addMenuItem(providerItem)
             indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
             indicator.menu.addMenuItem(resetItem);
+
+            // Add a menu item to open the preferences window
+            indicator.menu.addAction('Preferences',
+                () => this.openPreferences());
+
+            // Create a new GSettings object, and bind the "show-indicator"
+            // setting to the "visible" property.
+            this._settings = this.getSettings();
+            this._settings.bind('show-indicator', indicator, 'visible', Gio.SettingsBindFlags.DEFAULT);
+
+            // Watch for changes to a specific setting
+            this._settings.connect('changed::show-indicator', (settings, key) => {
+                this._LOGGER.info(`Setting ${key} changed to ${settings.get_value(key).print(true)}`);
+            });
         }
 
         this._label = label
@@ -555,10 +571,16 @@ export default class RailSpeedExtension extends Extension {
         this._graphArea = null
 
         this._speedHistory = []
+        this._globalSum = 0;
+        this._globalCount = 0;
 
         if (this._orchestrator) {
             this._orchestrator.destroy()
             this._orchestrator = null
+        }
+
+        if(this._settings) {
+            this._settings = null;
         }
 
         this._LOGGER.info('disabled')
