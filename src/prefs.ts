@@ -12,6 +12,23 @@ export default class ExamplePreferences extends ExtensionPreferences {
         });
         window.add(page);
 
+        const group = new Adw.PreferencesGroup({
+            title: 'Appearance',
+            description: 'Configure the appearance of the extension',
+        });
+        page.add(group);
+
+        // Create a new preferences row
+        const row = new Adw.SwitchRow({
+            title: 'Show Indicator',
+            subtitle: 'Whether to show the panel indicator',
+        });
+        group.add(row);
+
+        // Create a settings object and bind the row to the `show-indicator` key
+        this.getSettings().bind('show-indicator', row, 'active',
+            Gio.SettingsBindFlags.DEFAULT);
+
         this.addAlignment()
         this.addGraphWindowSize(page)
     }

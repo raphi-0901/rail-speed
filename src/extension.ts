@@ -209,6 +209,21 @@ export default class RailSpeedExtension extends Extension {
 
             // Add a menu item to open the preferences window
             indicator.menu.addAction('Preferences', () => this.openPreferences());
+
+            // Create a new GSettings object, and bind the "show-indicator"
+            // setting to the "visible" property.
+            this._settings = this.getSettings();
+            this._settings.bind('show-indicator', indicator, 'visible',
+                Gio.SettingsBindFlags.DEFAULT);
+
+            // Watch for changes to a specific setting
+            this._settings.connect('changed::show-indicator', (settings, key) => {
+                this._LOGGER.debug(`${key} = ${settings.get_value(key).print(true)}`);
+            });
+
+            this._settings.connect('changed::graph-window-size', (settings, key) => {
+                this._LOGGER.info(`Setting ${key} changed to ${settings.get_int(key)} minutes`);
+            });
         }
 
         this._label = label
@@ -220,9 +235,7 @@ export default class RailSpeedExtension extends Extension {
 
         Panel.addToStatusArea('railSpeed', indicator, 0, 'center')
 
-        this.getSettings().connect('changed::graph-window-size', (settings, key) => {
-            this._LOGGER.info(`Setting ${key} changed to ${settings.get_int(key)} minutes`);
-        });
+
     }
 
     private _resetStats() {
