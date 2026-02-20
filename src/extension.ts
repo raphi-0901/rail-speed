@@ -18,7 +18,6 @@ const FAST_REFRESH = 1
 
 export default class RailSpeedExtension extends Extension {
     private _updating = false
-    private GRAPH_WINDOW_SIZE = 10
 
     private _label: St.Label | null = null
     private _indicator: Button | null = null
@@ -70,6 +69,10 @@ export default class RailSpeedExtension extends Extension {
             timestamp: number
             speed: number
         }
+    }
+
+    get GRAPH_WINDOW_SIZE(): number {
+        return this.getSettings().get_int('graph-window-size') ?? 10
     }
 
     private setupUI() {
@@ -205,18 +208,7 @@ export default class RailSpeedExtension extends Extension {
             indicator.menu.addMenuItem(resetItem);
 
             // Add a menu item to open the preferences window
-            indicator.menu.addAction('Preferences',
-                () => this.openPreferences());
-
-            // Create a new GSettings object, and bind the "show-indicator"
-            // setting to the "visible" property.
-            this._settings = this.getSettings();
-            this._settings.bind('show-indicator', indicator, 'visible', Gio.SettingsBindFlags.DEFAULT);
-
-            // Watch for changes to a specific setting
-            this._settings.connect('changed::show-indicator', (settings, key) => {
-                this._LOGGER.info(`Setting ${key} changed to ${settings.get_value(key).print(true)}`);
-            });
+            indicator.menu.addAction('Preferences', () => this.openPreferences());
         }
 
         this._label = label
@@ -227,6 +219,10 @@ export default class RailSpeedExtension extends Extension {
         this._graphArea = graphArea
 
         Panel.addToStatusArea('railSpeed', indicator, 0, 'center')
+
+        this.getSettings().connect('changed::graph-window-size', (settings, key) => {
+            this._LOGGER.info(`Setting ${key} changed to ${settings.get_int(key)} minutes`);
+        });
     }
 
     private _resetStats() {
