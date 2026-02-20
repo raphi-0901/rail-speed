@@ -5,7 +5,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "tsc && cp src/metadata.json dist/metadata.json",
+    "build": "tsc && cp src/metadata.json dist/metadata.json && npm run build:schema",
+    "build:schema": "glib-compile-schemas src/schemas/ && cp -r src/schemas dist/schemas",
     "build:full": "npm run build && npm run link:full",
     "rebuild:full": "npm run rebuild && npm run link:full",
     "link:full": "npm run link && npm run reload",
