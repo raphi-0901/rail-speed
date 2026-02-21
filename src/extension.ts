@@ -548,6 +548,8 @@ export default class RailSpeedExtension extends Extension {
                             this._orchestrator.resetAll()
                         }
 
+                        // force that updating is running through
+                        this._updating = false;
                         this._update()
 
                         return GLib.SOURCE_REMOVE
