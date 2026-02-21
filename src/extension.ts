@@ -182,13 +182,11 @@ export default class RailSpeedExtension extends Extension {
                 Gio.SettingsBindFlags.DEFAULT);
 
             // Watch for changes to a specific setting
-            this._settings.connect('changed::show-indicator', (settings, key) => {
-                this._LOGGER.debug(`${key} = ${settings.get_value(key).print(true)}`);
+            this._settings.connect('changed', (settings, key) => {
+                const value = settings.get_value(key).print(true);
+                this._LOGGER.info(`Setting ${key} changed to ${value}.`);
             });
 
-            this._settings.connect('changed::graph-window-size', (settings, key) => {
-                this._LOGGER.info(`Setting ${key} changed to ${settings.get_int(key)} minutes`);
-            });
         }
 
         this._label = label
