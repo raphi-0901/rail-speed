@@ -116,7 +116,7 @@ export class SpeedOrchestrator {
 
         // 2️⃣ No allowed providers? Return nextWake
         if (tasks.length === 0) {
-            return { ok: false, nextWake: soonest ?? 60 };
+            return { ok: false, nextWake: 1 };
         }
 
         // 3️⃣ Race tasks with Promise.any
@@ -129,7 +129,7 @@ export class SpeedOrchestrator {
             return firstResult;
         } catch {
             // All failed
-            return { ok: false, nextWake: soonest ?? 60 };
+            throw new Error("All providers failed.")
         }
     }
 }

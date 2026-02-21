@@ -654,7 +654,9 @@ export default class RailSpeedExtension extends Extension {
                 this._bigSpeedLabel.set_text(`${lastSpeed.speed} km/h - (Offline)`);
             }
 
-            this._speedHistory.push({speed: null, timestamp: GLib.get_monotonic_time() / 1000 })
+            if(this._activeProvider) {
+                this._speedHistory.push({speed: null, timestamp: GLib.get_monotonic_time() / 1000 })
+            }
             this._updateUI()
             this._restartTimer(FAST_REFRESH)
 
@@ -682,10 +684,24 @@ export default class RailSpeedExtension extends Extension {
                 this._updateUI()
                 this._restartTimer(FAST_REFRESH)
             } else {
+                if(this._activeProvider) {
+                    this._speedHistory.push({speed: null, timestamp: GLib.get_monotonic_time() / 1000 })
+                }
+
                 this._updateUI()
                 this._restartTimer(result.nextWake)
             }
-        } finally {
+        }
+        catch {
+            this._LOGGER.debug(`All providers failed`)
+            if(this._activeProvider) {
+                this._speedHistory.push({speed: null, timestamp: GLib.get_monotonic_time() / 1000 })
+            }
+
+            this._updateUI()
+            this._restartTimer(FAST_REFRESH)
+        }
+        finally {
             this._updating = false
         }
     }
