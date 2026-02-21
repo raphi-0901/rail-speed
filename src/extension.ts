@@ -15,6 +15,7 @@ import {TestProvider} from "./providers/test.js";
 import {timeAgo} from "./core/utils/timeAgo.js";
 
 const FAST_REFRESH = 1
+const MAX_GRAPH_WINDOW_SIZE = 60
 
 export default class RailSpeedExtension extends Extension {
     private _updating = false
@@ -158,43 +159,7 @@ export default class RailSpeedExtension extends Extension {
         })
         providerItem.add_child(providerLabel)
 
-        // --- Reset button ---
-        const resetItem = new PopupMenu.PopupBaseMenuItem({ reactive: false });
-
-        const resetButton = new St.Button({
-            style_class: 'button',
-            x_expand: true,
-            x_align: Clutter.ActorAlign.FILL,
-            can_focus: true,
-        });
-
-        const resetButtonBox = new St.BoxLayout({
-            vertical: false,
-            x_align: Clutter.ActorAlign.CENTER,
-        });
-
         // /usr/share/icons/Yaru/scalable/status/speedometer-symbolic.svg
-
-        const resetIcon = new St.Icon({
-            icon_name: 'view-refresh-symbolic',
-            icon_size: 14,
-            style: 'margin-right: 6px;',
-        });
-
-        const resetLabel = new St.Label({
-            text: 'Reset statistics',
-            y_align: Clutter.ActorAlign.CENTER,
-        });
-
-        resetButtonBox.add_child(resetIcon);
-        resetButtonBox.add_child(resetLabel);
-        resetButton.set_child(resetButtonBox);
-
-        resetButton.connect('clicked', () => {
-            this._resetStats();
-        });
-
-        resetItem.add_child(resetButton);
 
         if (indicator.menu instanceof PopupMenu.PopupMenu) {
             indicator.menu.addMenuItem(headerItem)
@@ -205,8 +170,8 @@ export default class RailSpeedExtension extends Extension {
             indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem())
             indicator.menu.addMenuItem(providerItem)
             indicator.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-            indicator.menu.addMenuItem(resetItem);
 
+            indicator.menu.addAction('Reset statistics', () => this._resetStats());
             // Add a menu item to open the preferences window
             indicator.menu.addAction('Preferences', () => this.openPreferences());
 
@@ -248,6 +213,20 @@ export default class RailSpeedExtension extends Extension {
     }
 
     private _drawGraph(area: St.DrawingArea) {
+        // limit speedHistory to max to avoid large memory usage
+        const maxGraphWindowSizeCutoff = GLib.get_monotonic_time() / 1000 - 60 * MAX_GRAPH_WINDOW_SIZE * 1000
+
+        while (
+            this._speedHistory.length > 0 &&
+            this._speedHistory[0].timestamp < maxGraphWindowSizeCutoff
+            ) {
+            this._speedHistory.shift()
+        }
+
+        const userSettingGraphWindowSizeCutoff = GLib.get_monotonic_time() / 1000 - 60 * this.GRAPH_WINDOW_SIZE * 1000
+        // extract only window size
+        const relevantHistoryItems = this._speedHistory.filter(p => p.timestamp >= userSettingGraphWindowSizeCutoff)
+
         const cr = area.get_context()
         const [totalWidth, totalHeight] = area.get_surface_size()
 
@@ -270,7 +249,7 @@ export default class RailSpeedExtension extends Extension {
 
         const now = GLib.get_monotonic_time() / 1000
 
-        if (!cr || this._speedHistory.length < 2) {
+        if (!cr || relevantHistoryItems.length < 2) {
             // Draw the background so it doesn't look broken
             cr.setSourceRGBA(0, 0, 0, 0.3)
             cr.rectangle(plotX, plotY, plotW, plotH)
@@ -289,12 +268,12 @@ export default class RailSpeedExtension extends Extension {
         }
 
         // --- Time range (relative positioning) ---
-        const oldest = this._speedHistory.at(0)!.timestamp
-        const newest = this._speedHistory.at(-1)!.timestamp
+        const oldest = relevantHistoryItems.at(0)!.timestamp
+        const newest = relevantHistoryItems.at(-1)!.timestamp
         const timeRange = Math.max(newest - oldest, 1)
 
         // --- Y scaling based only on visible data ---
-        const visibleSpeeds = this._speedHistory.map(p => p.speed).filter(s => s !== null)
+        const visibleSpeeds = relevantHistoryItems.map(p => p.speed).filter(s => s !== null)
         const max = Math.max(...visibleSpeeds, this.avgSpeed, 50)
         const min = 0
         const yRange = Math.max(max - min, 1)
@@ -323,9 +302,14 @@ export default class RailSpeedExtension extends Extension {
             cr.stroke()
         }
 
+        const filteredSpeedsOfRelevantHistoryItems = relevantHistoryItems
+            .map(p => p.speed)
+            .filter(s => s !== null)
+        const averageOfFilteredSpeedsOfRelevantHistoryItems = filteredSpeedsOfRelevantHistoryItems
+            .reduce((acc, current) => acc + current, 0) / filteredSpeedsOfRelevantHistoryItems.length
         // Average line
-        if (this.avgSpeed > 0) {
-            const avgY = toPlotY(this.avgSpeed)
+        if (averageOfFilteredSpeedsOfRelevantHistoryItems > 0) {
+            const avgY = toPlotY(averageOfFilteredSpeedsOfRelevantHistoryItems)
 
             cr.setSourceRGBA(1.0, 0.6, 0.2, 0.9)  // orange
             cr.setLineWidth(1.5)
@@ -341,7 +325,7 @@ export default class RailSpeedExtension extends Extension {
             cr.setSourceRGBA(1.0, 0.6, 0.2, 0.85)
             cr.setFontSize(9)
             cr.moveTo(plotX + 4, avgY - 3)
-            cr.showText(`avg ${Math.round(this.avgSpeed)}`)
+            cr.showText(`avg ${Math.round(averageOfFilteredSpeedsOfRelevantHistoryItems)}`)
         }
 
         // --- Draw speed line (time-based X positioning) ---
@@ -350,7 +334,7 @@ export default class RailSpeedExtension extends Extension {
 
         let penDown = false
 
-        this._speedHistory.forEach((point) => {
+        relevantHistoryItems.forEach((point) => {
             const x = toPlotX(point.timestamp)
 
             if (point.speed === null) {
@@ -377,7 +361,7 @@ export default class RailSpeedExtension extends Extension {
         let segmentLastX = 0
         const plotBottom = plotY + plotH
 
-        for (const point of this._speedHistory) {
+        for (const point of relevantHistoryItems) {
             const x = toPlotX(point.timestamp)
 
             if (point.speed === null) {
@@ -413,7 +397,7 @@ export default class RailSpeedExtension extends Extension {
         }
 
         // --- Datapoint dots ---
-        this._speedHistory.forEach(point => {
+        relevantHistoryItems.forEach(point => {
             const x = toPlotX(point.timestamp)
 
             if (point.speed === null) {
@@ -491,7 +475,7 @@ export default class RailSpeedExtension extends Extension {
         }
 
         // Current speed label — centered above the last data point
-        const lastPoint = this._speedHistory.at(-1)!
+        const lastPoint = relevantHistoryItems.at(-1)!
         const latest = lastPoint.speed
         cr.setSourceRGBA(1, 1, 1, 0.8)
         cr.setFontSize(10)
@@ -517,7 +501,7 @@ export default class RailSpeedExtension extends Extension {
         const providers = [
             new OebbProvider(),
             new IcePortalProvider(),
-            new TestProvider(),
+            // new TestProvider(),
         ]
 
         this._orchestrator = new SpeedOrchestrator(providers)
@@ -642,18 +626,7 @@ export default class RailSpeedExtension extends Extension {
             }
 
             this._speedHistory.push({speed: null, timestamp: GLib.get_monotonic_time() / 1000 })
-            this._graphArea?.queue_repaint()
             this._updateUI()
-
-            const oneMinuteAgo = GLib.get_monotonic_time() / 1000 - 60 * 1 * 1000
-
-            while (
-                this._speedHistory.length > 0 &&
-                this._speedHistory[0].timestamp < oneMinuteAgo
-                ) {
-                this._speedHistory.shift()
-            }
-
             this._restartTimer(FAST_REFRESH)
 
             return
@@ -676,15 +649,6 @@ export default class RailSpeedExtension extends Extension {
                     speed: result.speed,
                     timestamp: result.timestamp,
                 })
-
-                const xMinutesAgo = GLib.get_monotonic_time() / 1000 - 60 * this.GRAPH_WINDOW_SIZE * 1000
-
-                while (
-                    this._speedHistory.length > 0 &&
-                    this._speedHistory[0].timestamp < xMinutesAgo
-                    ) {
-                    this._speedHistory.shift()
-                }
 
                 this._updateUI()
                 this._restartTimer(FAST_REFRESH)
