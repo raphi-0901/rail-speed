@@ -9,5 +9,15 @@
         <key name="show-indicator" type="b">
             <default>true</default>
         </key>
+        <key name="position" type="s">
+            <choices>
+                <choice value="left"/>
+                <choice value="center"/>
+                <choice value="right"/>
+            </choices>
+            <default>'center'</default>
+            <summary>Position of the indicator</summary>
+            <description>Controls where the indicator appears in the panel.</description>
+        </key>
     </schema>
 </schemalist>

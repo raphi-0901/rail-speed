@@ -76,6 +76,24 @@ export default class RailSpeedExtension extends Extension {
         return this.getSettings().get_int('graph-window-size') ?? 10
     }
 
+    private _positionChangedId: number = 0
+
+    private _applyPosition() {
+        if (!this._indicator) {
+            return
+        }
+
+        const position = this._settings?.get_string('position') ?? 'center'
+
+        // Remove from current box
+        // @ts-ignore
+        Panel.statusArea['railSpeed'] = null
+        this._indicator.container.get_parent()?.remove_child(this._indicator.container)
+
+        // Re-add to the correct box
+        Panel.addToStatusArea('railSpeed', this._indicator, 0, position)
+    }
+
     private setupUI() {
         // Create the panel button (it has a .menu built in)
         const indicator = new Button(0.0, 'railSpeed')
@@ -187,6 +205,9 @@ export default class RailSpeedExtension extends Extension {
                 this._LOGGER.info(`Setting ${key} changed to ${value}.`);
             });
 
+            this._positionChangedId = this._settings!.connect('changed::position', () => {
+                this._applyPosition()
+            })
         }
 
         this._label = label
@@ -196,9 +217,7 @@ export default class RailSpeedExtension extends Extension {
         this._providerLabel = providerLabel
         this._graphArea = graphArea
 
-        Panel.addToStatusArea('railSpeed', indicator, 0, 'center')
-
-
+        this._applyPosition()
     }
 
     private _resetStats() {
@@ -265,6 +284,13 @@ export default class RailSpeedExtension extends Extension {
             return
         }
 
+        const filteredSpeedsOfRelevantHistoryItems = relevantHistoryItems
+            .map(p => p.speed)
+            .filter(s => s !== null)
+        const averageOfFilteredSpeedsOfRelevantHistoryItems = filteredSpeedsOfRelevantHistoryItems
+            .reduce((acc, current) => acc + current, 0) / filteredSpeedsOfRelevantHistoryItems.length
+
+
         // --- Time range (relative positioning) ---
         const oldest = relevantHistoryItems.at(0)!.timestamp
         const newest = relevantHistoryItems.at(-1)!.timestamp
@@ -272,7 +298,7 @@ export default class RailSpeedExtension extends Extension {
 
         // --- Y scaling based only on visible data ---
         const visibleSpeeds = relevantHistoryItems.map(p => p.speed).filter(s => s !== null)
-        const max = Math.max(...visibleSpeeds, this.avgSpeed, 50)
+        const max = Math.max(...visibleSpeeds, averageOfFilteredSpeedsOfRelevantHistoryItems, 50)
         const min = 0
         const yRange = Math.max(max - min, 1)
 
@@ -300,12 +326,7 @@ export default class RailSpeedExtension extends Extension {
             cr.stroke()
         }
 
-        const filteredSpeedsOfRelevantHistoryItems = relevantHistoryItems
-            .map(p => p.speed)
-            .filter(s => s !== null)
-        const averageOfFilteredSpeedsOfRelevantHistoryItems = filteredSpeedsOfRelevantHistoryItems
-            .reduce((acc, current) => acc + current, 0) / filteredSpeedsOfRelevantHistoryItems.length
-        // Average line
+       // Average line
         if (averageOfFilteredSpeedsOfRelevantHistoryItems > 0) {
             const avgY = toPlotY(averageOfFilteredSpeedsOfRelevantHistoryItems)
 
@@ -570,9 +591,16 @@ export default class RailSpeedExtension extends Extension {
             this._orchestrator = null
         }
 
+        if (this._positionChangedId && this._settings) {
+            this._settings.disconnect(this._positionChangedId)
+            this._positionChangedId = 0
+        }
+
         if(this._settings) {
             this._settings = null;
         }
+
+
 
         this._LOGGER.info('disabled')
     }

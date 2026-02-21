@@ -29,12 +29,76 @@ export default class ExamplePreferences extends ExtensionPreferences {
         this.getSettings().bind('show-indicator', row, 'active',
             Gio.SettingsBindFlags.DEFAULT);
 
-        this.addAlignment()
+        this.addAlignment(page)
         this.addGraphWindowSize(page)
     }
 
-    private addAlignment() {
+    private addAlignment(page: Adw.PreferencesPage) {
+        const settings = this.getSettings();
 
+        const alignGroup = new Adw.PreferencesGroup({
+            title: 'Alignment',
+            description: 'Configure the position of the indicator',
+        });
+        page.add(alignGroup);
+
+        const row = new Adw.ActionRow({
+            title: 'Position',
+            subtitle: 'Horizontal position of the indicator',
+        });
+        alignGroup.add(row);
+
+        // Create linked toggle buttons
+        const box = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            valign: Gtk.Align.CENTER,
+            css_classes: ['linked'],
+            spacing: 0,
+        });
+
+        const leftBtn = new Gtk.ToggleButton({
+            label: 'Left',
+            css_classes: ['flat'],
+        });
+        const centerBtn = new Gtk.ToggleButton({
+            label: 'Center',
+            css_classes: ['flat'],
+            group: leftBtn,
+        });
+        const rightBtn = new Gtk.ToggleButton({
+            label: 'Right',
+            css_classes: ['flat'],
+            group: leftBtn,
+        });
+
+        box.append(leftBtn);
+        box.append(centerBtn);
+        box.append(rightBtn);
+        row.add_suffix(box);
+        row.set_activatable_widget(box);
+
+        // Map setting value → button
+        const valueToButton: Record<string, Gtk.ToggleButton> = {
+            left: leftBtn,
+            center: centerBtn,
+            right: rightBtn,
+        };
+
+        // Load initial state
+        const current = settings.get_string('position');
+        (valueToButton[current] ?? leftBtn).set_active(true);
+
+        // Save on toggle
+        const onToggle = (btn: Gtk.ToggleButton, value: string) => {
+            btn.connect('toggled', () => {
+                if (btn.get_active()) {
+                    settings.set_string('position', value);
+                }
+            });
+        };
+        onToggle(leftBtn, 'left');
+        onToggle(centerBtn, 'center');
+        onToggle(rightBtn, 'right');
     }
 
     private addGraphWindowSize(page: Adw.PreferencesPage) {
