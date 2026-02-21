@@ -223,6 +223,7 @@ export default class RailSpeedExtension extends Extension {
     private _resetStats() {
         this._LOGGER.info('Resetting statistics');
         this._speedHistory = [];
+        this._activeProvider = null
         this._globalSum = 0;
         this._globalCount = 0;
         this._globalMax = 0;
