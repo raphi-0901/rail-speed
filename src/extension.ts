@@ -10,6 +10,7 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import {SpeedOrchestrator} from './core/orchestrator.js'
 import {IcePortalProvider} from './providers/ice.js'
 import {OebbProvider} from './providers/oebb.js'
+import {OebbRegioProvider} from './providers/oebb-regio.js'
 import {Logger} from "./core/logger.js";
 import {TestProvider} from "./providers/test.js";
 import {timeAgo} from "./core/utils/timeAgo.js";
@@ -520,6 +521,7 @@ export default class RailSpeedExtension extends Extension {
 
         const providers = [
             new OebbProvider(),
+            new OebbRegioProvider(),
             new IcePortalProvider(),
             // new TestProvider(),
         ]
