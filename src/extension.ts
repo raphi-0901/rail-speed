@@ -14,6 +14,7 @@ import {OebbRegioProvider} from './providers/oebb-regio.js'
 import {Logger} from "./core/logger.js";
 import {TestProvider} from "./providers/test.js";
 import {timeAgo} from "./core/utils/timeAgo.js";
+import { ComfortJetProvider } from './providers/comfortjet.js'
 
 const FAST_REFRESH = 1
 const MAX_GRAPH_WINDOW_SIZE = 60
@@ -523,6 +524,7 @@ export default class RailSpeedExtension extends Extension {
             new OebbProvider(),
             new OebbRegioProvider(),
             new IcePortalProvider(),
+            new ComfortJetProvider(),
             // new TestProvider(),
         ]
 
