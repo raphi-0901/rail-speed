@@ -19,5 +19,10 @@
             <summary>Position of the indicator</summary>
             <description>Controls where the indicator appears in the panel.</description>
         </key>
+        <key name="westbahn-train-id" type="s">
+            <default>''</default>
+            <summary>Westbahn train run ID</summary>
+            <description>The train run id (trid) from rts.westbahn.at/train?trid=... for the current Westbahn trip.</description>
+        </key>
     </schema>
 </schemalist>

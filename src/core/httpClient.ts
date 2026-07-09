@@ -9,7 +9,16 @@ export interface FetchOptions {
     timeoutMs?: number;
 }
 
+export interface SseEvent {
+    event: string;
+    id?: string;
+    data: string;
+}
+
 const DEFAULT_TIMEOUT_MS = 1_000;
+
+// @ts-ignore GJS doesn't auto-promisify Soup.Session.send_async; register it explicitly.
+Gio._promisify(Soup.Session.prototype, 'send_async', 'send_finish');
 
 export class HttpClient {
     private _session: Soup.Session | null;
@@ -102,6 +111,89 @@ export class HttpClient {
         });
 
         return { promise, cancel };
+    }
+
+    public openEventStream(
+        url: string,
+        options: FetchOptions,
+        onEvent: (evt: SseEvent) => void,
+        onClose: (error?: Error) => void
+    ): { cancel: () => void } {
+        if (!this._session) {
+            throw new Error('HttpClient destroyed');
+        }
+
+        const message = Soup.Message.new('GET', url);
+        this._applyHeaders(message, options.headers);
+
+        const cancellable = new Gio.Cancellable();
+        const cancel = () => cancellable.cancel();
+
+        (async () => {
+            if (!this._session) {
+                onClose(new Error('HttpClient destroyed'));
+                return;
+            }
+
+            try {
+                const stream = await this._session.send_async(
+                    message,
+                    GLib.PRIORITY_DEFAULT,
+                    // @ts-ignore
+                    cancellable
+                );
+
+                const status = message.get_status();
+                if (status !== Soup.Status.OK) {
+                    const reason = message.get_reason_phrase?.() ?? '';
+                    onClose(new Error(`HTTP ${status}${reason ? ` ${reason}` : ''}`));
+                    return;
+                }
+
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                for await (const bytes of stream.createAsyncIterator(4096)) {
+                    buffer += decoder.decode(bytes.toArray() as unknown as ArrayBuffer);
+
+                    let boundary: number;
+                    while ((boundary = buffer.indexOf('\n\n')) !== -1) {
+                        const frame = buffer.slice(0, boundary);
+                        buffer = buffer.slice(boundary + 2);
+                        this._parseSseFrame(frame, onEvent);
+                    }
+                }
+
+                onClose();
+            } catch (e) {
+                onClose(e as Error);
+            }
+        })();
+
+        return { cancel };
+    }
+
+    private _parseSseFrame(frame: string, onEvent: (evt: SseEvent) => void): void {
+        let event: string | undefined;
+        let id: string | undefined;
+        const dataLines: string[] = [];
+
+        for (const rawLine of frame.split('\n')) {
+            const line = rawLine.replace(/\r$/, '');
+            if (line === '' || line.startsWith(':')) continue;
+
+            const colonIndex = line.indexOf(':');
+            const field = colonIndex === -1 ? line : line.slice(0, colonIndex);
+            const value = colonIndex === -1 ? '' : line.slice(colonIndex + 1).replace(/^ /, '');
+
+            if (field === 'event') event = value;
+            else if (field === 'id') id = value;
+            else if (field === 'data') dataLines.push(value);
+        }
+
+        if (dataLines.length > 0) {
+            onEvent({ event: event ?? 'message', id, data: dataLines.join('\n') });
+        }
     }
 
     private _applyHeaders(

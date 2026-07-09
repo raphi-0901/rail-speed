@@ -31,6 +31,7 @@ export default class ExamplePreferences extends ExtensionPreferences {
 
         this.addAlignment(page)
         this.addGraphWindowSize(page)
+        this.addWestbahnTrainId(page)
     }
 
     private addAlignment(page: Adw.PreferencesPage) {
@@ -131,5 +132,22 @@ export default class ExamplePreferences extends ExtensionPreferences {
             'value',
             Gio.SettingsBindFlags.DEFAULT
         );
+    }
+
+    private addWestbahnTrainId(page: Adw.PreferencesPage) {
+        const settings = this.getSettings()
+
+        const group = new Adw.PreferencesGroup({
+            title: 'Westbahn',
+            description: 'Configure the Westbahn provider',
+        });
+        page.add(group);
+
+        const row = new Adw.EntryRow({
+            title: 'Train ID',
+        });
+        group.add(row);
+
+        settings.bind('westbahn-train-id', row, 'text', Gio.SettingsBindFlags.DEFAULT);
     }
 }

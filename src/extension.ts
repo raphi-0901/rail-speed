@@ -15,6 +15,7 @@ import {Logger} from "./core/logger.js";
 import {TestProvider} from "./providers/test.js";
 import {timeAgo} from "./core/utils/timeAgo.js";
 import { ComfortJetProvider } from './providers/comfortjet.js'
+import { WestbahnProvider } from './providers/westbahn.js'
 
 const FAST_REFRESH = 1
 const MAX_GRAPH_WINDOW_SIZE = 60
@@ -39,6 +40,8 @@ export default class RailSpeedExtension extends Extension {
     private _LOGGER = Logger.getInstance()
 
     private _orchestrator: SpeedOrchestrator | null = null
+    private _westbahnProvider: WestbahnProvider | null = null
+    private _westbahnTrainIdChangedId: number = 0
 
     private _netmon: Gio.NetworkMonitor | null = null
     private _netmonChangedId: number = 0
@@ -209,6 +212,11 @@ export default class RailSpeedExtension extends Extension {
 
             this._positionChangedId = this._settings!.connect('changed::position', () => {
                 this._applyPosition()
+            })
+
+            this._westbahnTrainIdChangedId = this._settings!.connect('changed::westbahn-train-id', () => {
+                this._westbahnProvider?.setTrainId(this._settings!.get_string('westbahn-train-id'))
+                this._orchestrator?.resetAll()
             })
         }
 
@@ -520,11 +528,14 @@ export default class RailSpeedExtension extends Extension {
 
         this._timer = null
 
+        this._westbahnProvider = new WestbahnProvider(this._settings?.get_string('westbahn-train-id') ?? '')
+
         const providers = [
             new OebbProvider(),
             new OebbRegioProvider(),
             new IcePortalProvider(),
             new ComfortJetProvider(),
+            this._westbahnProvider,
             // new TestProvider(),
         ]
 
@@ -602,6 +613,13 @@ export default class RailSpeedExtension extends Extension {
             this._settings.disconnect(this._positionChangedId)
             this._positionChangedId = 0
         }
+
+        if (this._westbahnTrainIdChangedId && this._settings) {
+            this._settings.disconnect(this._westbahnTrainIdChangedId)
+            this._westbahnTrainIdChangedId = 0
+        }
+
+        this._westbahnProvider = null
 
         if(this._settings) {
             this._settings = null;
