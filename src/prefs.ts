@@ -113,7 +113,9 @@ export default class ExamplePreferences extends ExtensionPreferences {
 
         const adjustment = new Gtk.Adjustment({
             lower: 1,
-            upper: 60,
+            // schema key is a 32-bit int; this is effectively unbounded, the
+            // user restricts it themselves by choosing a value here
+            upper: 2147483647,
             step_increment: 1,
             page_increment: 5,
             value: settings.get_int('graph-window-size'),

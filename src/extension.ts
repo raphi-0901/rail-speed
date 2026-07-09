@@ -18,7 +18,6 @@ import { ComfortJetProvider } from './providers/comfortjet.js'
 import { WestbahnProvider } from './providers/westbahn.js'
 
 const FAST_REFRESH = 1
-const MAX_GRAPH_WINDOW_SIZE = 60
 
 export default class RailSpeedExtension extends Extension {
     private _updating = false
@@ -241,18 +240,9 @@ export default class RailSpeedExtension extends Extension {
     }
 
     private _drawGraph(area: St.DrawingArea) {
-        // limit speedHistory to max to avoid large memory usage
-        const maxGraphWindowSizeCutoff = GLib.get_monotonic_time() / 1000 - 60 * MAX_GRAPH_WINDOW_SIZE * 1000
-
-        while (
-            this._speedHistory.length > 0 &&
-            this._speedHistory[0].timestamp < maxGraphWindowSizeCutoff
-            ) {
-            this._speedHistory.shift()
-        }
-
+        // filter (non-destructively) to only the user-configured window size,
+        // so raising the window size later still shows previously-collected data
         const userSettingGraphWindowSizeCutoff = GLib.get_monotonic_time() / 1000 - 60 * this.GRAPH_WINDOW_SIZE * 1000
-        // extract only window size
         const relevantHistoryItems = this._speedHistory.filter(p => p.timestamp >= userSettingGraphWindowSizeCutoff)
 
         const cr = area.get_context()
