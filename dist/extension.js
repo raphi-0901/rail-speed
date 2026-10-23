@@ -14,6 +14,7 @@ import { Logger } from "./core/logger.js";
 import { timeAgo } from "./core/utils/timeAgo.js";
 import { ComfortJetProvider } from './providers/comfortjet.js';
 import { WestbahnProvider } from './providers/westbahn.js';
+import { SncfProvider } from './providers/sncf.js';
 const FAST_REFRESH = 1;
 export default class RailSpeedExtension extends Extension {
     _updating = false;
@@ -73,7 +74,7 @@ export default class RailSpeedExtension extends Extension {
     }
     setupUI() {
         // Create the panel button (it has a .menu built in)
-        const indicator = new Button(0.5, 'railSpeed');
+        const indicator = new Button(0.0, 'railSpeed');
         // The label shown in the panel bar
         const label = new St.Label({
             text: '',
@@ -416,6 +417,7 @@ export default class RailSpeedExtension extends Extension {
             new OebbRegioProvider(),
             new IcePortalProvider(),
             new ComfortJetProvider(),
+            new SncfProvider(),
             this._westbahnProvider,
             // new TestProvider(),
         ];
