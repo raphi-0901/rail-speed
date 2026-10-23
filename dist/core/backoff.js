@@ -12,11 +12,11 @@ export class ExponentialBackoff {
     isAllowed(nowMicroSeconds) {
         return nowMicroSeconds >= this.nextAllowedMicroSeconds;
     }
-    secondsUntilAllowed(nowUs) {
-        if (this.isAllowed(nowUs)) {
+    secondsUntilAllowed(nowMicroSeconds) {
+        if (this.isAllowed(nowMicroSeconds)) {
             return 0;
         }
-        return Math.ceil((this.nextAllowedMicroSeconds - nowUs) / 1_000_000);
+        return Math.ceil((this.nextAllowedMicroSeconds - nowMicroSeconds) / 1_000_000);
     }
     markSuccess() {
         this.failCount = 0;
@@ -31,4 +31,3 @@ export class ExponentialBackoff {
         return delay;
     }
 }
-//# sourceMappingURL=backoff.js.map

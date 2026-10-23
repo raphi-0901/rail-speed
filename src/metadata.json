@@ -3,6 +3,6 @@
   "name": "Rail speed",
   "description": "Displays rail speed in the top bar",
   "version": 1,
-  "shell-version": ["45", "46", "47"],
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
   "settings-schema": "org.gnome.shell.extensions.rail-speed"
 }

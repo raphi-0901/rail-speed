@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+    <schema id="org.gnome.shell.extensions.rail-speed" path="/org/gnome/shell/extensions/rail-speed/">
+        <key name="graph-window-size" type="i">
+            <default>10</default>
+            <summary>Number of minutes to display in the graph</summary>
+            <description>Controls how many minutes of speed history are visible in the graph.</description>
+        </key>
+        <key name="show-indicator" type="b">
+            <default>true</default>
+        </key>
+        <key name="position" type="s">
+            <choices>
+                <choice value="left"/>
+                <choice value="center"/>
+                <choice value="right"/>
+            </choices>
+            <default>'center'</default>
+            <summary>Position of the indicator</summary>
+            <description>Controls where the indicator appears in the panel.</description>
+        </key>
+        <key name="westbahn-train-id" type="s">
+            <default>''</default>
+            <summary>Westbahn train run ID</summary>
+            <description>The train run id (trid) from rts.westbahn.at/train?trid=... for the current Westbahn trip.</description>
+        </key>
+    </schema>
+</schemalist>

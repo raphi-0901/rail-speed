@@ -19,9 +19,13 @@ export class Logger {
             case 'WARN':
                 log(out);
                 break;
+            case 'DEBUG':
+                log(out);
+                break;
             case 'ERROR':
                 logError(out);
                 break;
+            default: log(level);
         }
     }
     info(msg) {
@@ -30,9 +34,11 @@ export class Logger {
     warn(msg) {
         this.log('WARN', msg);
     }
+    debug(msg) {
+        this.log('DEBUG', msg);
+    }
     error(err, context = '') {
         const msg = context ? `${context}: ${err}` : `${err}`;
         this.log('ERROR', msg);
     }
 }
-//# sourceMappingURL=logger.js.map

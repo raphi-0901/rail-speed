@@ -126,7 +126,6 @@ export default class RailSpeedExtension extends Extension {
         const statsItem = new PopupMenu.PopupBaseMenuItem({ reactive: false })
 
         const statsBox = new St.BoxLayout({
-            vertical: false,
             x_expand: true,
             x_align: Clutter.ActorAlign.FILL,
         })

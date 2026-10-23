@@ -1,23 +1,47 @@
-import { BaseProvider } from "../core/provider.js";
 import { HttpClient } from "../core/httpClient.js";
-export class TestProvider extends BaseProvider {
-    name = 'Test';
+import GLib from "gi://GLib";
+import { Logger } from "../core/logger.js";
+export class TestProvider {
+    name = 'TEST';
     _http = new HttpClient();
-    constructor() {
-        super();
-    }
-    async fetch() {
-        return this.wrapFetch(this.name, async () => {
-            const text = await this._http.fetchText('https://dummyjson.com/c/8e53-5ce8-4a29-ba8e');
-            const speed = Number(text);
-            if (!Number.isFinite(speed)) {
-                throw new Error('Test: invalid numeric response');
+    _LOGGER = Logger.getInstance();
+    /**
+     * New method: abortable fetch for orchestrator
+     */
+    fetch() {
+        const { promise, cancel } = this._http.fetchText('https://rail-speed.raphi-tab.workers.dev/');
+        const wrappedPromise = (async () => {
+            try {
+                const startMicroSeconds = GLib.get_monotonic_time();
+                const text = await promise;
+                let obj;
+                try {
+                    obj = JSON.parse(text);
+                }
+                catch {
+                    this._LOGGER.debug(`invalid JSON from Test: ${text}`);
+                    throw new Error(`${this.name}: invalid JSON`);
+                }
+                const speed = Number(obj?.speed);
+                if (!Number.isFinite(speed)) {
+                    throw new Error(`${this.name}: missing/invalid "speed"`);
+                }
+                this._LOGGER.debug(`Test speed: ${speed}`);
+                return {
+                    ok: true,
+                    speed,
+                    latencyMs: Math.floor((GLib.get_monotonic_time() - startMicroSeconds) / 1000),
+                    provider: this.name
+                };
             }
-            return speed;
-        });
+            catch (e) {
+                throw e; // allow orchestrator to catch & apply backoff
+            }
+        })();
+        return { promise: wrappedPromise, cancel };
     }
     destroy() {
+        this._LOGGER.info(`${this.name}: destroy`);
         this._http.destroy();
     }
 }
-//# sourceMappingURL=test.js.map
