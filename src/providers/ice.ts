@@ -61,6 +61,10 @@ export class IcePortalProvider implements SpeedProvider {
         return {promise: wrappedPromise, cancel};
     }
 
+    reset(): void {
+        this._http.reset();
+    }
+
     destroy(): void {
         this._LOGGER.info(`${this.name}: destroy`);
         this._http.destroy();

@@ -15,6 +15,7 @@ export class SpeedOrchestrator {
         this._LOGGER.info(`reset backoff for all providers.`);
         for (const e of this.entries) {
             e.backoff.markSuccess();
+            e.provider.reset?.();
         }
     }
     destroy() {
@@ -56,11 +57,11 @@ export class SpeedOrchestrator {
                         };
                     }
                     // Failure counts as "did not succeed"
-                    backoff.markFailure(startMicroSeconds);
                     throw new Error("provider failed");
                 }
                 catch {
                     backoff.markFailure(startMicroSeconds);
+                    provider.reset?.();
                     throw new Error("provider failed");
                 }
             })();

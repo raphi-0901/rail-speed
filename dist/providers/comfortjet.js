@@ -34,6 +34,9 @@ export class ComfortJetProvider {
         })();
         return { promise: wrappedPromise, cancel };
     }
+    reset() {
+        this._http.reset();
+    }
     destroy() {
         this._LOGGER.info(`${this.name}: destroy`);
         this._http.destroy();

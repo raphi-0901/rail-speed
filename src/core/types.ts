@@ -16,5 +16,9 @@ export interface SpeedProvider {
         promise: Promise<ProviderResult>
         cancel: () => void
     }
+    /**
+     * Optional: discard cached connection state (called after failures and network changes)
+     */
+    reset?(): void
     destroy(): void
 }

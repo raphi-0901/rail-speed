@@ -28,6 +28,21 @@ export class HttpClient {
         this._session = new Soup.Session();
     }
 
+    /**
+     * Drop all pooled connections and start over with a fresh session. A long-lived
+     * session can get stuck after network changes (e.g. ICE portal answering 200 with
+     * an empty body on every request), so callers reset it after failures.
+     */
+    public reset(): void {
+        if (!this._session) {
+            return;
+        }
+
+        this._LOGGER.debug(`reset session: ${this._session}`);
+        this._session.abort();
+        this._session = new Soup.Session();
+    }
+
     public destroy(): void {
         this._LOGGER.debug(`destroyed session: ${this._session}`);
         this._session = null;

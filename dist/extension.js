@@ -73,7 +73,7 @@ export default class RailSpeedExtension extends Extension {
     }
     setupUI() {
         // Create the panel button (it has a .menu built in)
-        const indicator = new Button(0.0, 'railSpeed');
+        const indicator = new Button(0.5, 'railSpeed');
         // The label shown in the panel bar
         const label = new St.Label({
             text: '',
